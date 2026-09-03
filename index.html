@@ -210,6 +210,23 @@
   .reuseItem .rpick{ background: var(--accent); color:#1a1408; }
   .reuseEmpty{ text-align:center; color: var(--text-dim); font-size: 13px; padding: 20px; }
 
+  .conflictText{ font-size: 14px; color: var(--text-dim); line-height:1.5; margin-bottom: 18px; }
+  .conflictText b{ color: var(--text); }
+  .conflictBtns{ display:flex; flex-direction:column; gap:10px; }
+  .conflictBtns button{
+    padding: 14px; border-radius: 12px; border: 1px solid var(--slot-border);
+    font-size: 14px; font-weight: 700; text-align:left;
+  }
+  .conflictBtns .replaceBtn{ background: var(--accent); color:#1a1408; border:none; }
+  .conflictBtns .newBtn{ background: var(--slot-empty); color: var(--text); }
+  .conflictBtns .cancelBtn2{ background: transparent; color: var(--text-dim); text-align:center; }
+
+  .swapLinkRow{ text-align:center; margin: -2px 0 14px 0; }
+  .swapLink{
+    background:none; border:none; color: var(--accent); font-size:13px;
+    font-weight:600; text-decoration: underline;
+  }
+
   .pinInput{
     width:100%; background: var(--slot-empty); border: 1px solid var(--slot-border);
     color: var(--text); padding: 16px 12px; border-radius: 10px; font-size: 24px;
@@ -283,10 +300,28 @@
     <div class="footerrow" style="margin-bottom:10px;">
       <button class="bigbtn" id="previewBtn" style="flex:none; width:100%;">▶ Escuchar</button>
     </div>
+    <div class="swapLinkRow" id="swapLinkRow" style="display:none;">
+      <button class="swapLink" id="swapLinkBtn" type="button">🔀 Intercambiar posición con otro botón</button>
+    </div>
     <div class="footerrow">
       <button class="close" id="cancelBtn">Cancelar</button>
       <button class="delete" id="deleteBtn" style="display:none;">Eliminar</button>
       <button class="save" id="saveBtn">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="swapOverlay">
+  <div class="sheet">
+    <h2>Cambiar posición</h2>
+    <div class="rowbtns" style="margin-bottom:14px;">
+      <button class="bigbtn" id="moveStartBtn"><span class="ic">⬆</span>Mover al inicio</button>
+      <button class="bigbtn" id="moveEndBtn"><span class="ic">⬇</span>Mover al final</button>
+    </div>
+    <div class="field"><label>O intercambiar exactamente con...</label></div>
+    <div class="reuseList" id="swapList"></div>
+    <div class="footerrow">
+      <button class="close" id="swapCancelBtn">Cancelar</button>
     </div>
   </div>
 </div>
@@ -309,6 +344,18 @@
     <div class="footerrow">
       <button class="close" id="pinCancelBtn">Cancelar</button>
       <button class="save" id="pinConfirmBtn">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="conflictOverlay">
+  <div class="sheet">
+    <h2>Ya existe un sonido con ese nombre</h2>
+    <div class="conflictText" id="conflictText"></div>
+    <div class="conflictBtns">
+      <button class="replaceBtn" id="conflictReplaceBtn" type="button">Reemplazar en todos los botones que lo usan</button>
+      <button class="newBtn" id="conflictNewBtn" type="button">Guardar como sonido nuevo y aparte</button>
+      <button class="cancelBtn2" id="conflictCancelBtn" type="button">Cancelar</button>
     </div>
   </div>
 </div>
@@ -347,6 +394,8 @@
   let pendingAudioLocalUrl = null;
   let pendingAudioUrl = null; // cuando se reutiliza un sonido ya existente
   let pendingAudioLabel = null;
+  let pendingSourceFileName = null; // nombre original del archivo subido
+  let replaceOldAudioUrl = null; // si el usuario eligió "reemplazar en todos", aquí va la URL vieja a sustituir
   let audioCtxUnlocked = false;
   const player = new Audio();
   let isPreviewPlaying = false;
@@ -582,6 +631,8 @@
   const sheetTitle = document.getElementById('sheetTitle');
   const saveBtn = document.getElementById('saveBtn');
 
+  let originalAudioUrlAtOpen = null;
+
   function openSheet(padId){
     currentPadId = padId;
     const pad = pads.find(p => p.id === padId);
@@ -589,10 +640,14 @@
     pendingAudioLocalUrl = null;
     pendingAudioUrl = null;
     pendingAudioLabel = null;
+    pendingSourceFileName = null;
+    replaceOldAudioUrl = null;
+    originalAudioUrlAtOpen = (pad && pad.audioUrl) || null;
     resetPreviewButton();
     labelInput.value = (pad && pad.label) || '';
     updateStatus(pad && pad.audioUrl ? 'ya-tiene' : 'vacio');
     deleteBtn.style.display = (pad && pad.audioUrl) ? 'block' : 'none';
+    document.getElementById('swapLinkRow').style.display = (pad && pad.audioUrl) ? 'block' : 'none';
     sheetTitle.textContent = (pad && pad.audioUrl) ? 'Editar botón' : 'Nuevo botón';
     saveBtn.disabled = false;
     overlay.classList.add('open');
@@ -607,6 +662,8 @@
     pendingAudioLocalUrl = null;
     pendingAudioUrl = null;
     pendingAudioLabel = null;
+    pendingSourceFileName = null;
+    replaceOldAudioUrl = null;
   }
 
   function updateStatus(state){
@@ -644,10 +701,50 @@
         const ref = storage.ref().child(path);
         await ref.put(pendingAudioBlob, { customMetadata: { editPin: EDIT_PIN } });
         updateData.audioUrl = await ref.getDownloadURL();
+        if(pendingSourceFileName) updateData.sourceFileName = pendingSourceFileName;
       } else if(pendingAudioUrl){
         updateData.audioUrl = pendingAudioUrl; // reutiliza el archivo ya existente, sin volver a subir
       }
       await padsCollection.doc(currentPadId).set(updateData, { merge: true });
+
+      // Si el usuario eligió "reemplazar en todos", actualizamos cada botón
+      // que usaba el sonido anterior para que apunte al archivo nuevo,
+      // y borramos el archivo viejo de Storage.
+      if(replaceOldAudioUrl && updateData.audioUrl){
+        const oldUrl = replaceOldAudioUrl;
+        const affected = pads.filter(p => p.id !== currentPadId && p.audioUrl === oldUrl);
+        if(affected.length){
+          const batch = db.batch();
+          affected.forEach(p => {
+            batch.set(padsCollection.doc(p.id), {
+              audioUrl: updateData.audioUrl,
+              sourceFileName: updateData.sourceFileName || null,
+              editPin: EDIT_PIN
+            }, { merge: true });
+          });
+          await batch.commit();
+        }
+        try{
+          await storage.refFromURL(oldUrl).delete();
+        }catch(delErr){ /* si falla el borrado, no es crítico, solo queda un archivo huérfano */ }
+      }
+
+      // Limpieza general: si este mismo botón tenía OTRO sonido antes y ahora
+      // quedó apuntando a uno distinto, borramos el anterior — siempre y
+      // cuando ningún otro botón lo siga usando (por ejemplo, vía Biblioteca).
+      if(
+        updateData.audioUrl &&
+        originalAudioUrlAtOpen &&
+        originalAudioUrlAtOpen !== updateData.audioUrl
+      ){
+        const stillUsedElsewhere = pads.some(p => p.id !== currentPadId && p.audioUrl === originalAudioUrlAtOpen);
+        if(!stillUsedElsewhere){
+          try{
+            await storage.refFromURL(originalAudioUrlAtOpen).delete();
+          }catch(delErr){ /* no crítico */ }
+        }
+      }
+
       closeSheet();
     }catch(err){
       statusEl.textContent = 'Error al guardar: ' + err.message;
@@ -761,18 +858,170 @@
     reuseOverlay.classList.remove('open');
   });
 
+  // ---- Intercambiar posición con otro botón ----
+  const swapOverlay = document.getElementById('swapOverlay');
+  const swapList = document.getElementById('swapList');
+  const swapLinkBtn = document.getElementById('swapLinkBtn');
+
+  swapLinkBtn.addEventListener('click', () => {
+    const others = pads.filter(p => p.id !== currentPadId);
+    swapList.innerHTML = '';
+    if(others.length === 0){
+      swapList.innerHTML = '<div class="reuseEmpty">No hay otros botones para intercambiar.</div>';
+    } else {
+      others.forEach(p => {
+        const item = document.createElement('div');
+        item.className = 'reuseItem';
+        const desc = p.audioUrl ? escapeHtml(p.label || 'Sin nombre') : 'Vacío';
+        item.innerHTML = `
+          <div class="rname">${desc}</div>
+          <button class="rpick" type="button">Intercambiar</button>
+        `;
+        item.querySelector('.rpick').addEventListener('click', async () => {
+          swapOverlay.classList.remove('open');
+          await swapWithPad(p.id);
+        });
+        swapList.appendChild(item);
+      });
+    }
+    swapOverlay.classList.add('open');
+  });
+
+  document.getElementById('swapCancelBtn').addEventListener('click', () => {
+    swapOverlay.classList.remove('open');
+  });
+
+  async function reorderCurrentPad(toStart){
+    const ok = await requireEditAccess();
+    if(!ok) return;
+    const current = pads.find(p => p.id === currentPadId);
+    if(!current) return;
+    const rest = pads.filter(p => p.id !== currentPadId).sort((a,b) => (a.order||0) - (b.order||0));
+    const newOrder = toStart ? [current, ...rest] : [...rest, current];
+    saveBtn.disabled = true;
+    statusEl.textContent = 'Moviendo…';
+    statusEl.style.color = 'var(--text-dim)';
+    try{
+      const batch = db.batch();
+      newOrder.forEach((p, idx) => {
+        batch.set(padsCollection.doc(p.id), { order: idx, editPin: EDIT_PIN }, { merge: true });
+      });
+      await batch.commit();
+      swapOverlay.classList.remove('open');
+      closeSheet();
+    }catch(err){
+      statusEl.textContent = 'Error al mover: ' + err.message;
+      statusEl.style.color = 'var(--danger)';
+    }finally{
+      saveBtn.disabled = false;
+    }
+  }
+
+  document.getElementById('moveStartBtn').addEventListener('click', () => reorderCurrentPad(true));
+  document.getElementById('moveEndBtn').addEventListener('click', () => reorderCurrentPad(false));
+
+  async function swapWithPad(otherPadId){
+    const ok = await requireEditAccess();
+    if(!ok) return;
+    const a = pads.find(p => p.id === currentPadId);
+    const b = pads.find(p => p.id === otherPadId);
+    if(!a || !b) return;
+    saveBtn.disabled = true;
+    statusEl.textContent = 'Intercambiando…';
+    statusEl.style.color = 'var(--text-dim)';
+    try{
+      const batch = db.batch();
+      batch.set(padsCollection.doc(a.id), {
+        label: b.label || '',
+        audioUrl: b.audioUrl || null,
+        sourceFileName: b.sourceFileName || null,
+        editPin: EDIT_PIN
+      }, { merge: true });
+      batch.set(padsCollection.doc(b.id), {
+        label: a.label || '',
+        audioUrl: a.audioUrl || null,
+        sourceFileName: a.sourceFileName || null,
+        editPin: EDIT_PIN
+      }, { merge: true });
+      await batch.commit();
+      closeSheet();
+    }catch(err){
+      statusEl.textContent = 'Error al intercambiar: ' + err.message;
+      statusEl.style.color = 'var(--danger)';
+    }finally{
+      saveBtn.disabled = false;
+    }
+  }
+
   // ---- Subir archivo ----
   const fileInput = document.getElementById('fileInput');
   document.getElementById('uploadBtn').addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if(!file) return;
+
+  const conflictOverlay = document.getElementById('conflictOverlay');
+  const conflictText = document.getElementById('conflictText');
+
+  function applyChosenFile(file, matchedPad){
     pendingAudioBlob = file;
     pendingAudioLocalUrl = URL.createObjectURL(file);
+    pendingSourceFileName = file.name;
     let name = file.name.replace(/\.[^/.]+$/, ''); // quita la extensión
     name = name.replace(/[_-]+/g, ' ').trim();
+    if(matchedPad){
+      // ya existe con ese nombre; si guarda como nuevo, diferenciamos la etiqueta
+      const dup = pads.some(p => p.id !== currentPadId && (p.label || '').trim().toLowerCase() === name.toLowerCase());
+      if(dup) name = name + ' (2)';
+    }
     labelInput.value = name.slice(0, 24);
     updateStatus();
+  }
+
+  function askFileConflict(file, matchedPad){
+    return new Promise((resolve) => {
+      conflictText.innerHTML = 'El archivo <b>' + escapeHtml(file.name) + '</b> tiene el mismo nombre que el sonido usado en <b>' + escapeHtml(matchedPad.label || 'otro botón') + '</b>.';
+      conflictOverlay.classList.add('open');
+      const replaceBtn = document.getElementById('conflictReplaceBtn');
+      const newBtn = document.getElementById('conflictNewBtn');
+      const cancelBtn2 = document.getElementById('conflictCancelBtn');
+      const cleanup = () => {
+        conflictOverlay.classList.remove('open');
+        replaceBtn.removeEventListener('click', onReplace);
+        newBtn.removeEventListener('click', onNew);
+        cancelBtn2.removeEventListener('click', onCancel);
+      };
+      const onReplace = () => { cleanup(); resolve('replace'); };
+      const onNew = () => { cleanup(); resolve('new'); };
+      const onCancel = () => { cleanup(); resolve('cancel'); };
+      replaceBtn.addEventListener('click', onReplace);
+      newBtn.addEventListener('click', onNew);
+      cancelBtn2.addEventListener('click', onCancel);
+    });
+  }
+
+  fileInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    fileInput.value = ''; // permite volver a elegir el mismo archivo después si hace falta
+
+    const matchedPad = pads.find(p =>
+      p.id !== currentPadId &&
+      p.audioUrl &&
+      p.sourceFileName &&
+      p.sourceFileName.trim().toLowerCase() === file.name.trim().toLowerCase()
+    );
+
+    if(matchedPad){
+      const choice = await askFileConflict(file, matchedPad);
+      if(choice === 'cancel') return;
+      if(choice === 'replace'){
+        replaceOldAudioUrl = matchedPad.audioUrl;
+      } else {
+        replaceOldAudioUrl = null;
+      }
+      applyChosenFile(file, matchedPad);
+    } else {
+      replaceOldAudioUrl = null;
+      applyChosenFile(file, null);
+    }
   });
 
   // ---- Grabar ----
