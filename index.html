@@ -772,7 +772,14 @@
     const ok = await requireEditAccess();
     if(!ok) return;
     try{
-      await padsCollection.doc(currentPadId).set({ label:'', audioUrl:null, editPin: EDIT_PIN }, { merge:true });
+      const urlToClean = originalAudioUrlAtOpen;
+      await padsCollection.doc(currentPadId).set({ label:'', audioUrl:null, sourceFileName: null, editPin: EDIT_PIN }, { merge:true });
+      if(urlToClean){
+        const stillUsedElsewhere = pads.some(p => p.id !== currentPadId && p.audioUrl === urlToClean);
+        if(!stillUsedElsewhere){
+          try{ await storage.refFromURL(urlToClean).delete(); }catch(delErr){ /* no crítico */ }
+        }
+      }
       closeSheet();
     }catch(err){
       statusEl.textContent = 'Error al eliminar: ' + err.message;
