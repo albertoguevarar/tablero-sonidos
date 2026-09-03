@@ -274,6 +274,7 @@
 <div class="topbar">
   <h1><span class="syncdot" id="syncDot"></span>Tablero de Sonidos</h1>
   <div class="actions">
+    <button class="iconbtn" id="globalStopBtn" title="Detener sonido" style="display:none; background: var(--danger); border-color: var(--danger);">■</button>
     <button class="iconbtn" id="addPadBtn" title="Agregar botón">＋</button>
   </div>
 </div>
@@ -584,13 +585,22 @@
     return document.getElementById('grid').children[idx] || null;
   }
 
+  const globalStopBtn = document.getElementById('globalStopBtn');
+
+  function updateGlobalStopBtn(){
+    globalStopBtn.style.display = currentlyPlayingPadId ? 'flex' : 'none';
+  }
+
   function stopCurrentlyPlaying(){
     if(currentlyPlayingPadId){
       markPadPlaying(getPadElement(currentlyPlayingPadId), false);
     }
     try{ player.pause(); player.currentTime = 0; }catch(e){}
     currentlyPlayingPadId = null;
+    updateGlobalStopBtn();
   }
+
+  globalStopBtn.addEventListener('click', stopCurrentlyPlaying);
 
   function togglePad(pad){
     unlockAudio();
@@ -603,6 +613,7 @@
     player.play().then(() => {
       currentlyPlayingPadId = pad.id;
       markPadPlaying(getPadElement(pad.id), true);
+      updateGlobalStopBtn();
       setPadStatus(pad.id, 'ok');
       hintEl.textContent = 'Toca un botón vacío para asignarle un sonido. Mantén presionado un botón lleno para editarlo.';
       hintEl.style.color = '';
@@ -618,6 +629,7 @@
     if(currentlyPlayingPadId){
       markPadPlaying(getPadElement(currentlyPlayingPadId), false);
       currentlyPlayingPadId = null;
+      updateGlobalStopBtn();
     }
   });
 
