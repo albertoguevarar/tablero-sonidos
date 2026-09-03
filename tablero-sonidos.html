@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Tablero de Sonidos</title>
+<style>
+  :root{
+    --bg: #14120f;
+    --panel: #1d1a15;
+    --slot-empty: #23201a;
+    --slot-border: #3a352b;
+    --accent: #e8a33d;
+    --accent-dim: #7a5a25;
+    --text: #f2ece0;
+    --text-dim: #a89e8c;
+    --danger: #c2503f;
+    --ok: #6fae6a;
+    --radius: 14px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    overscroll-behavior: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding: max(14px, env(safe-area-inset-top)) 16px 10px 16px;
+    border-bottom: 1px solid var(--slot-border);
+  }
+  .topbar h1{
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin:0;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .syncdot{
+    width:7px; height:7px; border-radius:50%;
+    background: var(--text-dim);
+  }
+  .syncdot.ok{ background: var(--ok); }
+  .syncdot.err{ background: var(--danger); }
+  .topbar .actions{ display:flex; gap:8px; }
+  .iconbtn{
+    background: var(--panel);
+    border: 1px solid var(--slot-border);
+    color: var(--text);
+    width:36px; height:36px;
+    border-radius: 10px;
+    font-size: 18px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .iconbtn:active{ background: var(--slot-border); }
+
+  #grid{
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    padding: 12px;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    max-width: 620px;
+    margin: 0 auto;
+  }
+  .pad{
+    aspect-ratio: 1 / 1;
+    max-height: 200px;
+    border-radius: var(--radius);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    padding: 8px;
+    font-weight: 600;
+    font-size: clamp(13px, 3.4vw, 17px);
+    line-height: 1.25;
+    word-break: break-word;
+    background: var(--slot-empty);
+    border: 1.5px dashed var(--slot-border);
+    color: var(--text-dim);
+    position: relative;
+    transition: transform 0.06s ease, background 0.15s ease;
+  }
+  .pad.status-ok{
+    background: linear-gradient(180deg, #2a3d1e, #1e2a15);
+    border: 1.5px solid var(--ok);
+    color: var(--text);
+  }
+  .pad.status-ok:active{
+    transform: scale(0.95);
+    background: linear-gradient(180deg, #3a5228, #1e2a15);
+  }
+  .pad.status-error{
+    background: linear-gradient(180deg, #3d2e14, #2a2010);
+    border: 1.5px solid var(--accent);
+    color: var(--text);
+  }
+  .pad.status-error:active{
+    transform: scale(0.95);
+    background: linear-gradient(180deg, var(--accent-dim), #2a2010);
+  }
+  .pad.status-checking{
+    background: linear-gradient(180deg, #2a2114, #201a10);
+    border: 1.5px solid var(--slot-border);
+    color: var(--text-dim);
+  }
+  .pad.playing{
+    box-shadow: 0 0 0 3px var(--accent);
+    animation: padpulse 0.9s ease-in-out infinite;
+  }
+  @keyframes padpulse{
+    0%, 100% { box-shadow: 0 0 0 3px var(--accent); }
+    50% { box-shadow: 0 0 0 3px rgba(232,163,61,0.35); }
+  }
+  .pad .playIcon{
+    position:absolute; top:8px; left:8px;
+    width: clamp(22px, 6vw, 30px); height: clamp(22px, 6vw, 30px);
+    border-radius:50%;
+    background: rgba(0,0,0,0.45);
+    display:flex; align-items:center; justify-content:center;
+    font-size: clamp(11px, 2.8vw, 15px);
+  }
+  .pad .editIcon{
+    position:absolute; bottom:6px; right:6px;
+    width: clamp(24px, 6.5vw, 32px); height: clamp(24px, 6.5vw, 32px);
+    border-radius:8px;
+    background: rgba(0,0,0,0.4);
+    display:flex; align-items:center; justify-content:center;
+    font-size: clamp(12px, 3vw, 16px);
+  }
+  .pad .editIcon:active{ background: rgba(0,0,0,0.65); }
+  .pad .plus{
+    font-size: 26px;
+    font-weight: 300;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+  .pad .uploading{
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    background: rgba(0,0,0,0.55);
+    border-radius: var(--radius);
+    font-size:12px;
+    color: var(--text);
+  }
+
+  .overlay{
+    position:fixed; inset:0;
+    background: rgba(0,0,0,0.6);
+    display:none;
+    align-items:flex-end;
+    z-index: 50;
+  }
+  .overlay.open{ display:flex; }
+  .sheet{
+    background: var(--panel);
+    width:100%;
+    border-radius: 20px 20px 0 0;
+    padding: 20px 18px calc(20px + env(safe-area-inset-bottom)) 18px;
+    border-top: 1px solid var(--slot-border);
+  }
+  .sheet h2{ margin: 0 0 14px 0; font-size: 17px; }
+  .field{ margin-bottom: 14px; }
+  .field label{
+    display:block; font-size: 12px; color: var(--text-dim);
+    margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .field input[type="text"]{
+    width:100%; background: var(--slot-empty); border: 1px solid var(--slot-border);
+    color: var(--text); padding: 10px 12px; border-radius: 10px; font-size: 16px;
+  }
+  .rowbtns{ display:flex; gap:8px; margin-bottom: 10px; }
+  .bigbtn{
+    flex:1; padding: 14px 6px; border-radius: 12px; border: 1px solid var(--slot-border);
+    background: var(--slot-empty); color: var(--text); font-size: 12.5px; font-weight: 600;
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+  }
+  .bigbtn.record{ border-color: var(--danger); }
+  .bigbtn.record.recording{ background: var(--danger); color:#fff; }
+  .bigbtn span.ic{ font-size: 20px; }
+  .status{ font-size: 13px; color: var(--text-dim); text-align:center; min-height: 18px; margin: 4px 0 12px 0; }
+  .sheet .footerrow{ display:flex; gap:10px; }
+  .footerrow button{ flex:1; padding: 13px; border-radius: 12px; border: none; font-size: 15px; font-weight: 700; }
+  .save{ background: var(--accent); color:#1a1408; }
+  .save:disabled{ opacity:0.5; }
+  .close{ background: var(--slot-empty); color: var(--text); border:1px solid var(--slot-border) !important; }
+  .delete{ background: transparent; color: var(--danger); border: 1px solid var(--danger) !important; }
+
+  .reuseList{ max-height: 45vh; overflow-y: auto; margin-bottom: 14px; }
+  .reuseItem{
+    display:flex; align-items:center; gap:10px;
+    padding: 12px; border-radius: 10px; background: var(--slot-empty);
+    border: 1px solid var(--slot-border); margin-bottom: 8px;
+  }
+  .reuseItem .rname{ flex:1; font-size:14px; font-weight:600; }
+  .reuseItem button{
+    border:none; border-radius:8px; padding:8px 12px; font-size:13px; font-weight:700;
+  }
+  .reuseItem .rplay{ background: var(--slot-border); color: var(--text); }
+  .reuseItem .rpick{ background: var(--accent); color:#1a1408; }
+  .reuseEmpty{ text-align:center; color: var(--text-dim); font-size: 13px; padding: 20px; }
+
+  .pinInput{
+    width:100%; background: var(--slot-empty); border: 1px solid var(--slot-border);
+    color: var(--text); padding: 16px 12px; border-radius: 10px; font-size: 24px;
+    text-align:center; letter-spacing: 10px; margin-bottom: 10px;
+  }
+  .pinError{ font-size:13px; color: var(--danger); text-align:center; min-height:16px; margin-bottom:10px; }
+
+  #fileInput{ display:none; }
+
+  .hint{ font-size: 12px; color: var(--text-dim); text-align:center; padding: 10px 20px 4px 20px; }
+
+  #startOverlay{
+    position:fixed; inset:0; background: var(--bg); z-index: 100;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding: 24px;
+  }
+  #startBtn{
+    width: 150px; height: 150px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, var(--accent), var(--accent-dim));
+    border: none; color: #1a1408; font-size: 15px; font-weight: 800; letter-spacing: 0.02em;
+    box-shadow: 0 0 0 6px rgba(232,163,61,0.12);
+  }
+  #startBtn:active{ transform: scale(0.96); }
+  #startOverlay.hidden{ display:none; }
+  #startError{ margin-top: 18px; font-size: 13px; color: var(--danger); max-width: 280px; min-height: 16px; }
+
+  /* Cuando el teléfono está acostado (horizontal), usamos más columnas
+     para que quepan más botones por fila y no haya que hacer tanto scroll */
+  @media (orientation: landscape) and (max-height: 500px){
+    #grid{
+      grid-template-columns: repeat(5, 1fr);
+      max-width: 900px;
+    }
+    .pad{ max-height: 130px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="startOverlay">
+  <button id="startBtn">▶<br>Probar sonido</button>
+  <div id="startError"></div>
+</div>
+
+<div class="topbar">
+  <h1><span class="syncdot" id="syncDot"></span>Tablero de Sonidos</h1>
+  <div class="actions">
+    <button class="iconbtn" id="addPadBtn" title="Agregar botón">＋</button>
+  </div>
+</div>
+
+<div id="grid"></div>
+<div class="hint" id="hint">Toca un botón vacío para asignarle un sonido. Mantén presionado un botón lleno para editarlo.</div>
+
+<div class="overlay" id="overlay">
+  <div class="sheet">
+    <h2 id="sheetTitle">Nuevo botón</h2>
+    <div class="field">
+      <label>Texto del botón</label>
+      <input type="text" id="labelInput" placeholder="Ej. Aplausos, Entrada, Efecto 1" maxlength="24">
+    </div>
+    <div class="field">
+      <label>Sonido</label>
+      <div class="rowbtns">
+        <button class="bigbtn record" id="recordBtn"><span class="ic">●</span>Grabar</button>
+        <button class="bigbtn" id="uploadBtn"><span class="ic">⬆</span>Subir</button>
+        <button class="bigbtn" id="reuseBtn"><span class="ic">🎵</span>Biblioteca</button>
+      </div>
+      <div class="status" id="status">Sin sonido asignado</div>
+    </div>
+    <div class="footerrow" style="margin-bottom:10px;">
+      <button class="bigbtn" id="previewBtn" style="flex:none; width:100%;">▶ Escuchar</button>
+    </div>
+    <div class="footerrow">
+      <button class="close" id="cancelBtn">Cancelar</button>
+      <button class="delete" id="deleteBtn" style="display:none;">Eliminar</button>
+      <button class="save" id="saveBtn">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="reuseOverlay">
+  <div class="sheet">
+    <h2>Biblioteca de sonidos</h2>
+    <div class="reuseList" id="reuseList"></div>
+    <div class="footerrow">
+      <button class="close" id="reuseCancelBtn">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="pinOverlay">
+  <div class="sheet">
+    <h2>Clave para editar</h2>
+    <input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" class="pinInput" id="pinInput" placeholder="••••">
+    <div class="pinError" id="pinError"></div>
+    <div class="footerrow">
+      <button class="close" id="pinCancelBtn">Cancelar</button>
+      <button class="save" id="pinConfirmBtn">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="fileInput" accept="audio/*">
+
+<!-- Firebase (versión compatible, sin necesidad de npm/bundler) -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
+
+<script>
+  // ---- Configuración de tu proyecto de Firebase ----
+  const firebaseConfig = {
+    apiKey: "AIzaSyD--kgHwu9zjk76Jwgs5SFrq1Vd2gWoBbw",
+    authDomain: "tablero-de-sonidos.firebaseapp.com",
+    projectId: "tablero-de-sonidos",
+    storageBucket: "tablero-de-sonidos.firebasestorage.app",
+    messagingSenderId: "706381977339",
+    appId: "1:706381977339:web:2ede4f1e8de2dbc94c025e"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+  const storage = firebase.storage();
+  const padsCollection = db.collection('pads');
+
+  const syncDot = document.getElementById('syncDot');
+  const hintEl = document.getElementById('hint');
+
+  let pads = []; // [{id, label, audioUrl, order}]
+  let currentPadId = null;
+  let mediaRecorder = null;
+  let recordedChunks = [];
+  let pendingAudioBlob = null;
+  let pendingAudioLocalUrl = null;
+  let pendingAudioUrl = null; // cuando se reutiliza un sonido ya existente
+  let pendingAudioLabel = null;
+  let audioCtxUnlocked = false;
+  const player = new Audio();
+  let isPreviewPlaying = false;
+
+  // ---- Escucha en tiempo real: cualquier cambio se refleja al instante ----
+  let firstLoad = true;
+  padsCollection.orderBy('order').onSnapshot(async (snapshot) => {
+    syncDot.className = 'syncdot ok';
+    if(snapshot.empty && firstLoad){
+      firstLoad = false;
+      await seedInitialPads();
+      return; // el propio seed disparará este listener de nuevo
+    }
+    firstLoad = false;
+    pads = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    renderGrid();
+  }, (err) => {
+    syncDot.className = 'syncdot err';
+    hintEl.textContent = 'No se pudo conectar con la base de datos compartida (' + err.message + '). Revisa tu conexión a internet.';
+  });
+
+  async function seedInitialPads(){
+    const batch = db.batch();
+    for(let i=0;i<12;i++){
+      const ref = padsCollection.doc();
+      batch.set(ref, { label:'', audioUrl:null, order:i });
+    }
+    try{ await batch.commit(); }catch(e){ /* el listener mostrará el error si persiste */ }
+  }
+
+  const padStatus = {}; // padId -> 'checking' | 'ok' | 'error'
+  const checkedUrls = {}; // padId -> última audioUrl ya revisada
+  let currentlyPlayingPadId = null;
+  const EDIT_PIN = '9062';
+  let sessionPin = null; // se guarda en memoria mientras esta pestaña esté abierta
+
+  const pinOverlay = document.getElementById('pinOverlay');
+  const pinInput = document.getElementById('pinInput');
+  const pinError = document.getElementById('pinError');
+
+  function requireEditAccess(){
+    return new Promise((resolve) => {
+      if(sessionPin === EDIT_PIN){ resolve(true); return; }
+      pinInput.value = '';
+      pinError.textContent = '';
+      pinOverlay.classList.add('open');
+      setTimeout(() => pinInput.focus(), 50);
+
+      const cleanup = () => {
+        pinOverlay.classList.remove('open');
+        confirmBtn.removeEventListener('click', onConfirm);
+        cancelBtn.removeEventListener('click', onCancel);
+        pinInput.removeEventListener('input', onInput);
+      };
+      const confirmBtn = document.getElementById('pinConfirmBtn');
+      const cancelBtn = document.getElementById('pinCancelBtn');
+      const attemptConfirm = () => {
+        if(pinInput.value === EDIT_PIN){
+          sessionPin = EDIT_PIN;
+          cleanup();
+          resolve(true);
+        } else if(pinInput.value.length >= 4){
+          pinError.textContent = 'Clave incorrecta, intenta de nuevo.';
+          pinInput.value = '';
+          pinInput.focus();
+        }
+      };
+      const onConfirm = () => attemptConfirm();
+      const onCancel = () => { cleanup(); resolve(false); };
+      const onInput = () => {
+        pinInput.value = pinInput.value.replace(/[^0-9]/g, '').slice(0,4);
+        if(pinInput.value.length === 4) attemptConfirm();
+      };
+      confirmBtn.addEventListener('click', onConfirm);
+      cancelBtn.addEventListener('click', onCancel);
+      pinInput.addEventListener('input', onInput);
+    });
+  }
+
+  function renderGrid(){
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '';
+    pads.forEach((pad) => {
+      const el = document.createElement('div');
+      let statusClass = '';
+      if(pad.audioUrl){
+        const st = padStatus[pad.id];
+        statusClass = st === 'ok' ? ' status-ok' : st === 'error' ? ' status-error' : ' status-checking';
+      }
+      el.className = 'pad' + statusClass;
+      el.innerHTML = pad.audioUrl
+        ? `${escapeHtml(pad.label || 'Sin nombre')}<div class="editIcon">✎</div>`
+        : `<div class="plus">＋</div>${escapeHtml(pad.label || 'Vacío')}`;
+
+      let pressTimer = null;
+      let longPressed = false;
+
+      el.addEventListener('touchstart', () => {
+        longPressed = false;
+        pressTimer = setTimeout(() => { longPressed = true; openSheet(pad.id); }, 420);
+      }, {passive:true});
+
+      el.addEventListener('touchend', () => {
+        clearTimeout(pressTimer);
+        if(longPressed) return;
+        if(pad.audioUrl){ togglePad(pad); } else { openSheet(pad.id); }
+      });
+
+      el.addEventListener('click', (ev) => {
+        if(ev.target.classList.contains('editIcon')){
+          ev.stopPropagation();
+          openSheet(pad.id);
+          return;
+        }
+        if('ontouchstart' in window) return;
+        if(pad.audioUrl){ togglePad(pad); } else { openSheet(pad.id); }
+      });
+
+      grid.appendChild(el);
+
+      if(pad.id === currentlyPlayingPadId){
+        markPadPlaying(el, true);
+      }
+
+      if(pad.audioUrl && checkedUrls[pad.id] !== pad.audioUrl){
+        checkedUrls[pad.id] = pad.audioUrl;
+        checkPadAudio(pad);
+      }
+    });
+  }
+
+  function setPadStatus(padId, status){
+    padStatus[padId] = status;
+    const idx = pads.findIndex(p => p.id === padId);
+    if(idx === -1) return;
+    const grid = document.getElementById('grid');
+    const el = grid.children[idx];
+    if(el){
+      const wasPlaying = padId === currentlyPlayingPadId;
+      el.className = 'pad status-' + status + (wasPlaying ? ' playing' : '');
+      el.innerHTML = escapeHtml(pads[idx].label || 'Sin nombre') + '<div class="editIcon">✎</div>';
+      if(wasPlaying) markPadPlaying(el, true);
+    }
+  }
+
+  function checkPadAudio(pad){
+    padStatus[pad.id] = 'checking';
+    const tester = new Audio();
+    let settled = false;
+    const finish = (ok) => {
+      if(settled) return;
+      settled = true;
+      setPadStatus(pad.id, ok ? 'ok' : 'error');
+      tester.src = '';
+    };
+    tester.addEventListener('canplaythrough', () => finish(true));
+    tester.addEventListener('loadeddata', () => finish(true));
+    tester.addEventListener('error', () => finish(false));
+    setTimeout(() => finish(false), 8000); // si tarda demasiado, lo marcamos como problema
+    tester.preload = 'auto';
+    tester.src = pad.audioUrl;
+    tester.load();
+  }
+
+  function escapeHtml(s){
+    return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function markPadPlaying(el, isPlaying){
+    if(!el) return;
+    el.classList.toggle('playing', isPlaying);
+    const existingIcon = el.querySelector('.playIcon');
+    if(isPlaying && !existingIcon){
+      const icon = document.createElement('div');
+      icon.className = 'playIcon';
+      icon.textContent = '■';
+      el.appendChild(icon);
+    } else if(!isPlaying && existingIcon){
+      existingIcon.remove();
+    }
+  }
+
+  function getPadElement(padId){
+    const idx = pads.findIndex(p => p.id === padId);
+    if(idx === -1) return null;
+    return document.getElementById('grid').children[idx] || null;
+  }
+
+  function stopCurrentlyPlaying(){
+    if(currentlyPlayingPadId){
+      markPadPlaying(getPadElement(currentlyPlayingPadId), false);
+    }
+    try{ player.pause(); player.currentTime = 0; }catch(e){}
+    currentlyPlayingPadId = null;
+  }
+
+  function togglePad(pad){
+    unlockAudio();
+    if(currentlyPlayingPadId === pad.id){
+      stopCurrentlyPlaying();
+      return;
+    }
+    stopCurrentlyPlaying();
+    player.src = pad.audioUrl;
+    player.play().then(() => {
+      currentlyPlayingPadId = pad.id;
+      markPadPlaying(getPadElement(pad.id), true);
+      setPadStatus(pad.id, 'ok');
+      hintEl.textContent = 'Toca un botón vacío para asignarle un sonido. Mantén presionado un botón lleno para editarlo.';
+      hintEl.style.color = '';
+    }).catch((err) => {
+      setPadStatus(pad.id, 'error');
+      hintEl.textContent = 'No se pudo reproducir "' + (pad.label || 'este sonido') + '": ' + err.message;
+      hintEl.style.color = 'var(--danger)';
+    });
+    if(navigator.vibrate) navigator.vibrate(15);
+  }
+
+  player.addEventListener('ended', () => {
+    if(currentlyPlayingPadId){
+      markPadPlaying(getPadElement(currentlyPlayingPadId), false);
+      currentlyPlayingPadId = null;
+    }
+  });
+
+  function unlockAudio(){ audioCtxUnlocked = true; }
+
+  // ---- Modal ----
+  const overlay = document.getElementById('overlay');
+  const labelInput = document.getElementById('labelInput');
+  const statusEl = document.getElementById('status');
+  const deleteBtn = document.getElementById('deleteBtn');
+  const sheetTitle = document.getElementById('sheetTitle');
+  const saveBtn = document.getElementById('saveBtn');
+
+  function openSheet(padId){
+    currentPadId = padId;
+    const pad = pads.find(p => p.id === padId);
+    pendingAudioBlob = null;
+    pendingAudioLocalUrl = null;
+    pendingAudioUrl = null;
+    pendingAudioLabel = null;
+    resetPreviewButton();
+    labelInput.value = (pad && pad.label) || '';
+    updateStatus(pad && pad.audioUrl ? 'ya-tiene' : 'vacio');
+    deleteBtn.style.display = (pad && pad.audioUrl) ? 'block' : 'none';
+    sheetTitle.textContent = (pad && pad.audioUrl) ? 'Editar botón' : 'Nuevo botón';
+    saveBtn.disabled = false;
+    overlay.classList.add('open');
+  }
+
+  function closeSheet(){
+    overlay.classList.remove('open');
+    stopRecordingIfActive();
+    stopPreview();
+    currentPadId = null;
+    pendingAudioBlob = null;
+    pendingAudioLocalUrl = null;
+    pendingAudioUrl = null;
+    pendingAudioLabel = null;
+  }
+
+  function updateStatus(state){
+    if(pendingAudioBlob){
+      statusEl.textContent = '✓ Sonido nuevo listo para subir';
+      statusEl.style.color = 'var(--ok)';
+    } else if(pendingAudioUrl){
+      statusEl.textContent = '✓ Reutilizando: ' + (pendingAudioLabel || 'sonido existente');
+      statusEl.style.color = 'var(--ok)';
+    } else if(state === 'ya-tiene'){
+      statusEl.textContent = '✓ Ya tiene un sonido guardado';
+      statusEl.style.color = 'var(--ok)';
+    } else {
+      statusEl.textContent = 'Sin sonido asignado';
+      statusEl.style.color = 'var(--text-dim)';
+    }
+  }
+
+  document.getElementById('cancelBtn').addEventListener('click', closeSheet);
+
+  saveBtn.addEventListener('click', async () => {
+    if(currentPadId === null) return;
+    const ok = await requireEditAccess();
+    if(!ok) return;
+    const newLabel = labelInput.value.trim();
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Guardando…';
+    try{
+      const updateData = { label: newLabel, editPin: EDIT_PIN };
+      if(pendingAudioBlob){
+        let ext = pendingAudioBlob.type.split('/')[1] || 'audio';
+        if(ext.includes('mp4')) ext = 'm4a';
+        if(ext === 'mpeg') ext = 'mp3';
+        const path = 'sounds/' + currentPadId + '-' + Date.now() + '.' + ext;
+        const ref = storage.ref().child(path);
+        await ref.put(pendingAudioBlob, { customMetadata: { editPin: EDIT_PIN } });
+        updateData.audioUrl = await ref.getDownloadURL();
+      } else if(pendingAudioUrl){
+        updateData.audioUrl = pendingAudioUrl; // reutiliza el archivo ya existente, sin volver a subir
+      }
+      await padsCollection.doc(currentPadId).set(updateData, { merge: true });
+      closeSheet();
+    }catch(err){
+      statusEl.textContent = 'Error al guardar: ' + err.message;
+      statusEl.style.color = 'var(--danger)';
+    }finally{
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Guardar';
+    }
+  });
+
+  deleteBtn.addEventListener('click', async () => {
+    if(currentPadId === null) return;
+    const ok = await requireEditAccess();
+    if(!ok) return;
+    try{
+      await padsCollection.doc(currentPadId).set({ label:'', audioUrl:null, editPin: EDIT_PIN }, { merge:true });
+      closeSheet();
+    }catch(err){
+      statusEl.textContent = 'Error al eliminar: ' + err.message;
+      statusEl.style.color = 'var(--danger)';
+    }
+  });
+
+  document.getElementById('addPadBtn').addEventListener('click', async () => {
+    const ok = await requireEditAccess();
+    if(!ok) return;
+    const maxOrder = pads.reduce((m,p) => Math.max(m, p.order || 0), -1);
+    try{
+      await padsCollection.add({ label:'', audioUrl:null, order: maxOrder + 1, editPin: EDIT_PIN });
+    }catch(err){
+      hintEl.textContent = 'No se pudo agregar el botón: ' + err.message;
+    }
+  });
+
+  const previewBtn = document.getElementById('previewBtn');
+
+  function resetPreviewButton(){
+    isPreviewPlaying = false;
+    previewBtn.textContent = '▶ Escuchar';
+  }
+
+  function stopPreview(){
+    try{ player.pause(); player.currentTime = 0; }catch(e){}
+    resetPreviewButton();
+  }
+
+  previewBtn.addEventListener('click', () => {
+    unlockAudio();
+    if(isPreviewPlaying){
+      stopPreview();
+      return;
+    }
+    let url = null;
+    if(pendingAudioLocalUrl){ url = pendingAudioLocalUrl; }
+    else if(pendingAudioUrl){ url = pendingAudioUrl; }
+    else {
+      const pad = pads.find(p => p.id === currentPadId);
+      if(pad && pad.audioUrl) url = pad.audioUrl;
+    }
+    if(!url) return;
+    player.src = url;
+    player.play().then(() => {
+      isPreviewPlaying = true;
+      previewBtn.textContent = '■ Detener';
+    }).catch(()=>{});
+  });
+
+  player.addEventListener('ended', () => { resetPreviewButton(); });
+
+  // ---- Reutilizar sonido existente ----
+  const reuseOverlay = document.getElementById('reuseOverlay');
+  const reuseList = document.getElementById('reuseList');
+  const reuseBtn = document.getElementById('reuseBtn');
+
+  reuseBtn.addEventListener('click', () => {
+    const options = pads.filter(p => p.audioUrl && p.id !== currentPadId);
+    reuseList.innerHTML = '';
+    if(options.length === 0){
+      reuseList.innerHTML = '<div class="reuseEmpty">Todavía no hay otros sonidos guardados para reutilizar.</div>';
+    } else {
+      options.forEach(p => {
+        const item = document.createElement('div');
+        item.className = 'reuseItem';
+        item.innerHTML = `
+          <div class="rname">${escapeHtml(p.label || 'Sin nombre')}</div>
+          <button class="rplay" type="button">▶</button>
+          <button class="rpick" type="button">Usar</button>
+        `;
+        item.querySelector('.rplay').addEventListener('click', () => {
+          unlockAudio();
+          try{ player.pause(); }catch(e){}
+          player.src = p.audioUrl;
+          player.play().catch(()=>{});
+        });
+        item.querySelector('.rpick').addEventListener('click', () => {
+          pendingAudioBlob = null;
+          pendingAudioLocalUrl = null;
+          pendingAudioUrl = p.audioUrl;
+          pendingAudioLabel = p.label;
+          updateStatus();
+          reuseOverlay.classList.remove('open');
+        });
+        reuseList.appendChild(item);
+      });
+    }
+    reuseOverlay.classList.add('open');
+  });
+
+  document.getElementById('reuseCancelBtn').addEventListener('click', () => {
+    try{ player.pause(); }catch(e){}
+    reuseOverlay.classList.remove('open');
+  });
+
+  // ---- Subir archivo ----
+  const fileInput = document.getElementById('fileInput');
+  document.getElementById('uploadBtn').addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    pendingAudioBlob = file;
+    pendingAudioLocalUrl = URL.createObjectURL(file);
+    let name = file.name.replace(/\.[^/.]+$/, ''); // quita la extensión
+    name = name.replace(/[_-]+/g, ' ').trim();
+    labelInput.value = name.slice(0, 24);
+    updateStatus();
+  });
+
+  // ---- Grabar ----
+  const recordBtn = document.getElementById('recordBtn');
+  let isRecording = false;
+
+  recordBtn.addEventListener('click', async () => {
+    if(isRecording){ stopRecordingIfActive(); return; }
+    try{
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      recordedChunks = [];
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = (e) => { if(e.data.size>0) recordedChunks.push(e.data); };
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, {type: 'audio/mp4'});
+        pendingAudioBlob = blob;
+        pendingAudioLocalUrl = URL.createObjectURL(blob);
+        updateStatus();
+        stream.getTracks().forEach(t => t.stop());
+      };
+      mediaRecorder.start();
+      isRecording = true;
+      recordBtn.classList.add('recording');
+      recordBtn.querySelector('.ic').textContent = '■';
+      statusEl.textContent = 'Grabando… toca de nuevo para detener';
+      statusEl.style.color = 'var(--danger)';
+    }catch(err){
+      statusEl.textContent = 'No se pudo acceder al micrófono (' + err.message + ')';
+      statusEl.style.color = 'var(--danger)';
+    }
+  });
+
+  function stopRecordingIfActive(){
+    if(mediaRecorder && isRecording){
+      mediaRecorder.stop();
+      isRecording = false;
+      recordBtn.classList.remove('recording');
+      recordBtn.querySelector('.ic').textContent = '●';
+    }
+  }
+
+  // ---- Desbloqueo de audio con botón "Probar sonido" ----
+  const startOverlay = document.getElementById('startOverlay');
+  const startBtn = document.getElementById('startBtn');
+  const startError = document.getElementById('startError');
+  let sharedAudioCtx = null;
+
+  function playUnlockBeep(){
+    return new Promise((resolve, reject) => {
+      try{
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if(!Ctx){ reject(new Error('Web Audio no disponible en este navegador')); return; }
+        if(!sharedAudioCtx) sharedAudioCtx = new Ctx();
+        const ctx = sharedAudioCtx;
+        const resumeAttempt = (ctx.state === 'suspended') ? ctx.resume() : Promise.resolve();
+
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.value = 660;
+        const now = ctx.currentTime;
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.2);
+
+        let resolved = false;
+        const doResolve = () => { if(!resolved){ resolved = true; resolve(); } };
+        osc.onended = doResolve;
+
+        // Respaldo: si por lo que sea 'onended' no dispara, no lo tomamos
+        // como fallo — el navegador ya reprodujo el sonido en este punto
+        // (algunos navegadores suspenden el contexto justo después de
+        // terminar, y eso NO significa que haya fallado).
+        setTimeout(doResolve, 400);
+
+        resumeAttempt.catch(() => {});
+      }catch(err){ reject(err); }
+    });
+  }
+
+  function unlockPlaybackElement(){
+    try{
+      player.muted = true;
+      player.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+      const p = player.play();
+      if(p && p.catch) p.catch(()=>{});
+      setTimeout(() => { player.muted = false; }, 50);
+    }catch(e){}
+  }
+
+  startBtn.addEventListener('click', () => {
+    unlockPlaybackElement();
+    startBtn.disabled = true;
+    startBtn.textContent = 'Reproduciendo…';
+    startError.textContent = '';
+
+    playUnlockBeep().then(() => {
+      audioCtxUnlocked = true;
+      startOverlay.classList.add('hidden');
+    }).catch((err) => {
+      startBtn.disabled = false;
+      startBtn.textContent = '▶\nProbar sonido';
+      startError.textContent = 'No se pudo reproducir sonido (' + (err && err.message ? err.message : 'error desconocido') + '). Revisa el volumen y toca de nuevo.';
+    });
+  });
+
+  document.addEventListener('touchmove', (e) => {
+    if(!overlay.classList.contains('open')) e.preventDefault();
+  }, {passive:false});
+</script>
+</body>
+</html>
