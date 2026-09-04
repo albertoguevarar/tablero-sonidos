@@ -70,10 +70,24 @@
     padding-bottom: calc(20px + env(safe-area-inset-bottom));
     max-width: 620px;
     margin: 0 auto;
+    perspective: 800px;
   }
   .pad{
     aspect-ratio: 1 / 1;
     max-height: 200px;
+    position: relative;
+  }
+  .padInner{
+    position: absolute; inset: 0;
+    transform-style: preserve-3d;
+    transition: transform 0.5s cubic-bezier(0.4, 0.1, 0.2, 1);
+  }
+  .pad.flipped .padInner{ transform: rotateY(180deg); }
+  .pad:active .padInner{ transform: scale(0.95); }
+  .pad.flipped:active .padInner{ transform: rotateY(180deg) scale(0.95); }
+  .padFace{
+    position: absolute; inset: 0;
+    backface-visibility: hidden;
     border-radius: var(--radius);
     display:flex;
     flex-direction:column;
@@ -85,52 +99,50 @@
     font-size: clamp(13px, 3.4vw, 17px);
     line-height: 1.25;
     word-break: break-word;
+  }
+  .padFront{
     background: var(--slot-empty);
     border: 1.5px dashed var(--slot-border);
     color: var(--text-dim);
-    position: relative;
-    transition: transform 0.06s ease, background 0.15s ease;
   }
-  .pad.status-ok{
+  .pad.status-ok .padFront{
     background: linear-gradient(180deg, #2a3d1e, #1e2a15);
     border: 1.5px solid var(--ok);
     color: var(--text);
   }
-  .pad.status-ok:active{
-    transform: scale(0.95);
-    background: linear-gradient(180deg, #3a5228, #1e2a15);
-  }
-  .pad.status-error{
+  .pad.status-error .padFront{
     background: linear-gradient(180deg, #3d2e14, #2a2010);
     border: 1.5px solid var(--accent);
     color: var(--text);
   }
-  .pad.status-error:active{
-    transform: scale(0.95);
-    background: linear-gradient(180deg, var(--accent-dim), #2a2010);
-  }
-  .pad.status-checking{
+  .pad.status-checking .padFront{
     background: linear-gradient(180deg, #2a2114, #201a10);
     border: 1.5px solid var(--slot-border);
     color: var(--text-dim);
   }
-  .pad.playing{
-    box-shadow: 0 0 0 3px var(--accent);
-    animation: padpulse 0.9s ease-in-out infinite;
+  .pad.flipped .padFront{ pointer-events: none; }
+  .padBack{
+    background: linear-gradient(180deg, var(--danger), #3a1712);
+    border: 1.5px solid var(--danger);
+    color: #fff;
+    transform: rotateY(180deg);
   }
-  @keyframes padpulse{
-    0%, 100% { box-shadow: 0 0 0 3px var(--accent); }
-    50% { box-shadow: 0 0 0 3px rgba(232,163,61,0.35); }
+  .pad:not(.flipped) .padBack{ pointer-events: none; }
+  .backLabel{
+    font-size: clamp(11px, 3vw, 14px);
+    font-weight: 700;
+    opacity: 0.9;
+    margin-bottom: 10px;
+    padding: 0 4px;
   }
-  .pad .playIcon{
-    position:absolute; top:8px; left:8px;
-    width: clamp(22px, 6vw, 30px); height: clamp(22px, 6vw, 30px);
-    border-radius:50%;
-    background: rgba(0,0,0,0.45);
+  .backStop{
+    width: clamp(34px, 9vw, 46px); height: clamp(34px, 9vw, 46px);
+    border-radius: 50%;
+    background: rgba(0,0,0,0.25);
     display:flex; align-items:center; justify-content:center;
-    font-size: clamp(11px, 2.8vw, 15px);
+    font-size: clamp(14px, 4vw, 18px);
   }
-  .pad .editIcon{
+  .padFace .editIcon{
     position:absolute; bottom:6px; right:6px;
     width: clamp(24px, 6.5vw, 32px); height: clamp(24px, 6.5vw, 32px);
     border-radius:8px;
@@ -138,14 +150,14 @@
     display:flex; align-items:center; justify-content:center;
     font-size: clamp(12px, 3vw, 16px);
   }
-  .pad .editIcon:active{ background: rgba(0,0,0,0.65); }
-  .pad .plus{
+  .padFace .editIcon:active{ background: rgba(0,0,0,0.65); }
+  .padFace .plus{
     font-size: 26px;
     font-weight: 300;
     color: var(--text-dim);
     margin-bottom: 4px;
   }
-  .pad .uploading{
+  .padFace .uploading{
     position:absolute; inset:0;
     display:flex; align-items:center; justify-content:center;
     background: rgba(0,0,0,0.55);
@@ -272,7 +284,7 @@
 </div>
 
 <div class="topbar">
-  <h1><span class="syncdot" id="syncDot"></span>Tablero de Sonidos <span style="color:var(--text-dim); font-weight:400; font-size:11px;">v1</span></h1>
+  <h1><span class="syncdot" id="syncDot"></span>Tablero de Sonidos</h1>
   <div class="actions">
     <button class="iconbtn" id="globalStopBtn" title="Detener sonido" style="display:none; background: var(--danger); border-color: var(--danger);">■</button>
     <button class="iconbtn" id="addPadBtn" title="Agregar botón">＋</button>
@@ -280,6 +292,7 @@
 </div>
 
 <div id="grid"></div>
+<div style="text-align:center; color:var(--text-dim); font-size:11px; padding-top:6px;">v2</div>
 <div class="hint" id="hint">Toca un botón vacío para asignarle un sonido. Mantén presionado un botón lleno para editarlo.</div>
 
 <div class="overlay" id="overlay">
@@ -477,6 +490,17 @@
     });
   }
 
+  function padFacesHTML(pad){
+    const frontContent = pad.audioUrl
+      ? `${escapeHtml(pad.label || 'Sin nombre')}<div class="editIcon">✎</div>`
+      : `<div class="plus">＋</div>${escapeHtml(pad.label || 'Vacío')}`;
+    const backContent = `<div class="backLabel">${escapeHtml(pad.label || 'Sin nombre')}</div><div class="backStop">■</div>`;
+    return `<div class="padInner">`
+      + `<div class="padFace padFront">${frontContent}</div>`
+      + `<div class="padFace padBack">${backContent}</div>`
+      + `</div>`;
+  }
+
   function renderGrid(){
     const grid = document.getElementById('grid');
     grid.innerHTML = '';
@@ -488,10 +512,8 @@
         const st = padStatus[pad.id];
         statusClass = st === 'ok' ? ' status-ok' : st === 'error' ? ' status-error' : ' status-checking';
       }
-      el.className = 'pad' + statusClass;
-      el.innerHTML = pad.audioUrl
-        ? `${escapeHtml(pad.label || 'Sin nombre')}<div class="editIcon">✎</div>`
-        : `<div class="plus">＋</div>${escapeHtml(pad.label || 'Vacío')}`;
+      el.className = 'pad' + statusClass + (pad.id === currentlyPlayingPadId ? ' flipped' : '');
+      el.innerHTML = padFacesHTML(pad);
 
       let pressTimer = null;
       let longPressed = false;
@@ -519,10 +541,6 @@
 
       grid.appendChild(el);
 
-      if(pad.id === currentlyPlayingPadId){
-        markPadPlaying(el, true);
-      }
-
       if(pad.audioUrl && checkedUrls[pad.id] !== pad.audioUrl){
         checkedUrls[pad.id] = pad.audioUrl;
         const delay = pendingCheckCount * 250; // escalonado: uno cada 250ms
@@ -540,9 +558,8 @@
     const el = grid.children[idx];
     if(el){
       const wasPlaying = padId === currentlyPlayingPadId;
-      el.className = 'pad status-' + status + (wasPlaying ? ' playing' : '');
-      el.innerHTML = escapeHtml(pads[idx].label || 'Sin nombre') + '<div class="editIcon">✎</div>';
-      if(wasPlaying) markPadPlaying(el, true);
+      el.className = 'pad status-' + status + (wasPlaying ? ' flipped' : '');
+      el.innerHTML = padFacesHTML(pads[idx]);
     }
   }
 
@@ -571,16 +588,7 @@
 
   function markPadPlaying(el, isPlaying){
     if(!el) return;
-    el.classList.toggle('playing', isPlaying);
-    const existingIcon = el.querySelector('.playIcon');
-    if(isPlaying && !existingIcon){
-      const icon = document.createElement('div');
-      icon.className = 'playIcon';
-      icon.textContent = '■';
-      el.appendChild(icon);
-    } else if(!isPlaying && existingIcon){
-      existingIcon.remove();
-    }
+    el.classList.toggle('flipped', isPlaying);
   }
 
   function getPadElement(padId){
