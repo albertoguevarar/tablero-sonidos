@@ -292,7 +292,7 @@
 </div>
 
 <div id="grid"></div>
-<div style="text-align:center; color:var(--text-dim); font-size:11px; padding-top:6px;">v2</div>
+<div style="text-align:center; color:var(--text-dim); font-size:11px; padding-top:6px;">v3</div>
 <div class="hint" id="hint">Toca un botón vacío para asignarle un sonido. Mantén presionado un botón lleno para editarlo.</div>
 
 <div class="overlay" id="overlay">
@@ -557,9 +557,8 @@
     const grid = document.getElementById('grid');
     const el = grid.children[idx];
     if(el){
-      const wasPlaying = padId === currentlyPlayingPadId;
-      el.className = 'pad status-' + status + (wasPlaying ? ' flipped' : '');
-      el.innerHTML = padFacesHTML(pads[idx]);
+      el.classList.remove('status-ok', 'status-error', 'status-checking');
+      el.classList.add('status-' + status);
     }
   }
 
