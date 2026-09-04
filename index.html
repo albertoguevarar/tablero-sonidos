@@ -272,7 +272,7 @@
 </div>
 
 <div class="topbar">
-  <h1><span class="syncdot" id="syncDot"></span>Tablero de Sonidos</h1>
+  <h1><span class="syncdot" id="syncDot"></span>Tablero de Sonidos <span style="color:var(--text-dim); font-weight:400; font-size:11px;">v1</span></h1>
   <div class="actions">
     <button class="iconbtn" id="globalStopBtn" title="Detener sonido" style="display:none; background: var(--danger); border-color: var(--danger);">■</button>
     <button class="iconbtn" id="addPadBtn" title="Agregar botón">＋</button>
@@ -428,6 +428,7 @@
   }
 
   const padStatus = {}; // padId -> 'checking' | 'ok' | 'error'
+  let pendingCheckCount = 0;
   const checkedUrls = {}; // padId -> última audioUrl ya revisada
   let currentlyPlayingPadId = null;
   const EDIT_PIN = '9062';
@@ -479,6 +480,7 @@
   function renderGrid(){
     const grid = document.getElementById('grid');
     grid.innerHTML = '';
+    pendingCheckCount = 0;
     pads.forEach((pad) => {
       const el = document.createElement('div');
       let statusClass = '';
@@ -523,7 +525,9 @@
 
       if(pad.audioUrl && checkedUrls[pad.id] !== pad.audioUrl){
         checkedUrls[pad.id] = pad.audioUrl;
-        checkPadAudio(pad);
+        const delay = pendingCheckCount * 250; // escalonado: uno cada 250ms
+        pendingCheckCount++;
+        setTimeout(() => checkPadAudio(pad), delay);
       }
     });
   }
@@ -618,9 +622,22 @@
       hintEl.textContent = 'Toca un botón vacío para asignarle un sonido. Mantén presionado un botón lleno para editarlo.';
       hintEl.style.color = '';
     }).catch((err) => {
-      setPadStatus(pad.id, 'error');
-      hintEl.textContent = 'No se pudo reproducir "' + (pad.label || 'este sonido') + '": ' + err.message;
-      hintEl.style.color = 'var(--danger)';
+      // Si el navegador bloqueó el audio (típico al volver de otra app o
+      // de segundo plano en iOS), no es un problema del sonido en sí:
+      // reactivamos la pantalla de "Probar sonido" para restablecer el permiso.
+      if(err && (err.name === 'NotAllowedError' || err.name === 'NotSupportedError')){
+        audioCtxUnlocked = false;
+        startError.textContent = '';
+        startBtn.disabled = false;
+        startBtn.textContent = '▶\nProbar sonido';
+        startOverlay.classList.remove('hidden');
+        hintEl.textContent = 'El navegador pausó el audio (esto pasa al volver de otra app). Toca "Probar sonido" para reactivarlo.';
+        hintEl.style.color = 'var(--danger)';
+      } else {
+        setPadStatus(pad.id, 'error');
+        hintEl.textContent = 'No se pudo reproducir "' + (pad.label || 'este sonido') + '": ' + err.message;
+        hintEl.style.color = 'var(--danger)';
+      }
     });
     if(navigator.vibrate) navigator.vibrate(15);
   }
