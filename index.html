@@ -67,7 +67,7 @@
     grid-template-columns: repeat(3, 1fr);
     gap: 10px;
     padding: 12px;
-    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    padding-bottom: calc(6px + env(safe-area-inset-bottom));
     max-width: 620px;
     margin: 0 auto;
     perspective: 800px;
@@ -292,7 +292,7 @@
 </div>
 
 <div id="grid"></div>
-<div style="text-align:center; color:var(--text-dim); font-size:11px; padding-top:6px;">v3</div>
+<div style="text-align:center; color:var(--text-dim); font-size:11px; padding-top:6px;">v4</div>
 <div class="hint" id="hint">Toca un botón vacío para asignarle un sonido. Mantén presionado un botón lleno para editarlo.</div>
 
 <div class="overlay" id="overlay">
@@ -1173,10 +1173,6 @@
       startError.textContent = 'No se pudo reproducir sonido (' + (err && err.message ? err.message : 'error desconocido') + '). Revisa el volumen y toca de nuevo.';
     });
   });
-
-  document.addEventListener('touchmove', (e) => {
-    if(!overlay.classList.contains('open')) e.preventDefault();
-  }, {passive:false});
 </script>
 </body>
 </html>
