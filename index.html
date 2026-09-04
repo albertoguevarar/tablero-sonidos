@@ -292,7 +292,7 @@
 </div>
 
 <div id="grid"></div>
-<div style="text-align:center; color:var(--text-dim); font-size:11px; padding-top:6px;">v4</div>
+<div style="text-align:center; color:var(--text-dim); font-size:11px; padding-top:6px;">v5</div>
 <div class="hint" id="hint">Toca un botón vacío para asignarle un sonido. Mantén presionado un botón lleno para editarlo.</div>
 
 <div class="overlay" id="overlay">
@@ -517,15 +517,31 @@
 
       let pressTimer = null;
       let longPressed = false;
+      let touchMoved = false;
+      let touchStartX = 0, touchStartY = 0;
 
-      el.addEventListener('touchstart', () => {
+      el.addEventListener('touchstart', (e) => {
         longPressed = false;
+        touchMoved = false;
+        const t = e.touches[0];
+        touchStartX = t.clientX;
+        touchStartY = t.clientY;
         pressTimer = setTimeout(() => { longPressed = true; openSheet(pad.id); }, 420);
+      }, {passive:true});
+
+      el.addEventListener('touchmove', (e) => {
+        const t = e.touches[0];
+        const dx = Math.abs(t.clientX - touchStartX);
+        const dy = Math.abs(t.clientY - touchStartY);
+        if(dx > 10 || dy > 10){
+          touchMoved = true;
+          clearTimeout(pressTimer); // si se está arrastrando (scroll), cancela el "mantener presionado"
+        }
       }, {passive:true});
 
       el.addEventListener('touchend', () => {
         clearTimeout(pressTimer);
-        if(longPressed) return;
+        if(longPressed || touchMoved) return; // fue un scroll, no un toque real
         if(pad.audioUrl){ togglePad(pad); } else { openSheet(pad.id); }
       });
 
