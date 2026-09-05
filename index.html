@@ -171,15 +171,20 @@
     background: rgba(0,0,0,0.6);
     display:none;
     align-items:flex-end;
+    justify-content:center;
     z-index: 50;
   }
   .overlay.open{ display:flex; }
   .sheet{
     background: var(--panel);
     width:100%;
+    max-width: 480px;
+    margin: 0 auto;
     border-radius: 20px 20px 0 0;
     padding: 20px 18px calc(20px + env(safe-area-inset-bottom)) 18px;
     border-top: 1px solid var(--slot-border);
+    border-left: 1px solid var(--slot-border);
+    border-right: 1px solid var(--slot-border);
   }
   .sheet h2{ margin: 0 0 14px 0; font-size: 17px; }
   .field{ margin-bottom: 14px; }
@@ -304,7 +309,7 @@
 </div>
 
 <div id="grid"></div>
-<div style="text-align:center; color:var(--text-dim); font-size:11px; padding-top:6px;">v12</div>
+<div style="text-align:center; color:var(--text-dim); font-size:11px; padding-top:6px;">v13</div>
 <div class="hint" id="hint">Toca un botón vacío para asignarle un sonido. Mantén presionado un botón lleno para editarlo.</div>
 
 <div class="overlay" id="overlay">
