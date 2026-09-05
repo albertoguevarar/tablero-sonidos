@@ -260,8 +260,15 @@
     background: radial-gradient(circle at 35% 30%, var(--accent), var(--accent-dim));
     border: none; color: #1a1408; font-size: 15px; font-weight: 800; letter-spacing: 0.02em;
     box-shadow: 0 0 0 6px rgba(232,163,61,0.12);
+    transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
   }
   #startBtn:active{ transform: scale(0.96); }
+  #startBtn.success{
+    background: radial-gradient(circle at 35% 30%, #8fd489, var(--ok));
+    box-shadow: 0 0 0 6px rgba(111,174,106,0.25);
+    color: #0d2210;
+    transform: scale(1.06);
+  }
   #startOverlay.hidden{ display:none; }
   #startError{ margin-top: 18px; font-size: 13px; color: var(--danger); max-width: 280px; min-height: 16px; }
 
@@ -292,7 +299,7 @@
 </div>
 
 <div id="grid"></div>
-<div style="text-align:center; color:var(--text-dim); font-size:11px; padding-top:6px;">v6</div>
+<div style="text-align:center; color:var(--text-dim); font-size:11px; padding-top:6px;">v8</div>
 <div class="hint" id="hint">Toca un botón vacío para asignarle un sonido. Mantén presionado un botón lleno para editarlo.</div>
 
 <div class="overlay" id="overlay">
@@ -1140,7 +1147,23 @@
     player.src = BEEP_DATA_URL;
     player.play().then(() => {
       audioCtxUnlocked = true;
-      startOverlay.classList.add('hidden');
+
+      let proceeded = false;
+      const showReadyAndAdvance = () => {
+        if(proceeded) return;
+        proceeded = true;
+        startBtn.classList.add('success');
+        startBtn.textContent = '✓\n¡Listo!';
+        setTimeout(() => {
+          startOverlay.classList.add('hidden');
+        }, 500); // le da tiempo a que se escuche el sonido de prueba antes de mostrar el tablero
+      };
+
+      // Esperamos a que el audio esté REALMENTE sonando (no solo que el
+      // navegador haya dado permiso), para que no se sienta desfasado.
+      player.addEventListener('playing', showReadyAndAdvance, { once: true });
+      // Respaldo por si el evento 'playing' no dispara en algún navegador.
+      setTimeout(showReadyAndAdvance, 500);
     }).catch((err) => {
       startBtn.disabled = false;
       startBtn.textContent = '▶\nProbar sonido';
