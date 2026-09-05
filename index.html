@@ -323,7 +323,7 @@
 </div>
 
 <div id="grid"></div>
-<div style="text-align:center; color:var(--text-dim); font-size:11px; padding-top:6px;">v17</div>
+<div style="text-align:center; color:var(--text-dim); font-size:11px; padding-top:6px;">v18</div>
 <div class="hint" id="hint">Toca un botón vacío para asignarle un sonido. Mantén presionado un botón lleno para editarlo.</div>
 
 <div class="overlay" id="overlay">
@@ -426,6 +426,7 @@
   const db = firebase.firestore();
   const storage = firebase.storage();
   const padsCollection = db.collection('pads');
+  const libraryCollection = db.collection('library'); // sonidos guardados que no están en ningún botón
 
   const syncDot = document.getElementById('syncDot');
   const hintEl = document.getElementById('hint');
@@ -864,25 +865,45 @@
   deleteBtn.addEventListener('click', async () => {
     if(currentPadId === null) return;
     if(isWriteInProgress){ statusEl.textContent = 'Espera a que termine la operación anterior…'; statusEl.style.color = 'var(--text-dim)'; return; }
-    if(!window.confirm('Esto eliminará el sonido de este botón. ¿Continuar?')) return;
+    if(!window.confirm('Esto eliminará este botón del tablero. El sonido quedará guardado en la Biblioteca para poder usarlo después. ¿Continuar?')) return;
     isWriteInProgress = true;
     deleteBtn.disabled = true;
     const padIdAtClick = currentPadId;
+
+    // Si este botón se había quedado "reproduciendo" (volteado) sin
+    // detenerse antes de eliminarlo, lo forzamos a su estado normal ahora
+    // mismo, para que no se quede atorado mostrando la cara roja.
+    if(currentlyPlayingPadId === padIdAtClick){
+      stopCurrentlyPlaying();
+    }
+
     const ok = await requireEditAccess();
     if(!ok){ deleteBtn.disabled = false; isWriteInProgress = false; return; }
     try{
       // Consultamos Firebase directamente (no la copia local en memoria)
-      // para saber con certeza qué sonido tiene este botón ahora mismo.
+      // para saber con certeza qué tiene este botón ahora mismo.
       const beforeSnap = await padsCollection.doc(padIdAtClick).get();
-      const urlToClean = beforeSnap.exists ? (beforeSnap.data().audioUrl || null) : null;
-      await padsCollection.doc(padIdAtClick).set({ label:'', audioUrl:null, sourceFileName: null, editPin: EDIT_PIN }, { merge:true });
-      if(urlToClean){
-        const dupSnap = await padsCollection.where('audioUrl', '==', urlToClean).get();
-        const stillUsedElsewhere = dupSnap.docs.some(d => d.id !== padIdAtClick);
-        if(!stillUsedElsewhere){
-          try{ await storage.refFromURL(urlToClean).delete(); }catch(delErr){ /* no crítico */ }
-        }
+      const beforeData = beforeSnap.exists ? beforeSnap.data() : {};
+      const urlToArchive = beforeData.audioUrl || null;
+
+      // Si tenía un sonido, lo guardamos en la Biblioteca (sonidos
+      // disponibles) en vez de borrarlo — así se puede reutilizar después
+      // en cualquier botón, sin duplicar el archivo ni perderlo.
+      if(urlToArchive){
+        await libraryCollection.add({
+          label: beforeData.label || '',
+          audioUrl: urlToArchive,
+          sourceFileName: beforeData.sourceFileName || null,
+          editPin: EDIT_PIN
+        });
       }
+
+      // Borramos el documento del botón por completo (no solo su contenido),
+      // así los demás botones se recorren automáticamente para llenar el
+      // espacio, ya que la rejilla siempre se dibuja a partir de los
+      // documentos que realmente existen en Firestore.
+      await padsCollection.doc(padIdAtClick).delete();
+
       closeSheet();
     }catch(err){
       statusEl.textContent = 'Error al eliminar: ' + err.message;
@@ -975,12 +996,60 @@
   const reuseList = document.getElementById('reuseList');
   const reuseBtn = document.getElementById('reuseBtn');
 
-  reuseBtn.addEventListener('click', () => {
+  reuseBtn.addEventListener('click', async () => {
+    reuseList.innerHTML = '<div class="reuseEmpty">Cargando…</div>';
+    reuseOverlay.classList.add('open');
+
     const options = pads.filter(p => p.audioUrl && p.id !== currentPadId);
+
+    let libraryDocs = [];
+    try{
+      const librarySnap = await libraryCollection.get();
+      libraryDocs = librarySnap.docs;
+    }catch(err){ /* si falla, mostramos solo lo de otros botones */ }
+
     reuseList.innerHTML = '';
-    if(options.length === 0){
-      reuseList.innerHTML = '<div class="reuseEmpty">Todavía no hay otros sonidos guardados para reutilizar.</div>';
-    } else {
+
+    if(options.length === 0 && libraryDocs.length === 0){
+      reuseList.innerHTML = '<div class="reuseEmpty">Todavía no hay sonidos guardados para reutilizar.</div>';
+      return;
+    }
+
+    if(libraryDocs.length > 0){
+      const header = document.createElement('div');
+      header.className = 'field';
+      header.innerHTML = '<label>Disponibles (no están en ningún botón)</label>';
+      reuseList.appendChild(header);
+
+      libraryDocs.forEach(doc => {
+        const entry = doc.data();
+        const item = document.createElement('div');
+        item.className = 'reuseItem';
+        item.innerHTML = `
+          <div class="rname">${escapeHtml(entry.label || 'Sin nombre')}</div>
+          <button class="rplay" type="button">▶</button>
+          <button class="rpick" type="button">Usar</button>
+        `;
+        item.querySelector('.rplay').addEventListener('click', () => {
+          unlockAudio();
+          try{ player.pause(); }catch(e){}
+          player.src = entry.audioUrl;
+          player.play().catch(()=>{});
+        });
+        item.querySelector('.rpick').addEventListener('click', async () => {
+          reuseOverlay.classList.remove('open');
+          await assignFromLibrary(doc.id, entry);
+        });
+        reuseList.appendChild(item);
+      });
+    }
+
+    if(options.length > 0){
+      const header2 = document.createElement('div');
+      header2.className = 'field';
+      header2.innerHTML = '<label>En otros botones (los mueve aquí)</label>';
+      reuseList.appendChild(header2);
+
       options.forEach(p => {
         const item = document.createElement('div');
         item.className = 'reuseItem';
@@ -1002,8 +1071,36 @@
         reuseList.appendChild(item);
       });
     }
-    reuseOverlay.classList.add('open');
   });
+
+  async function assignFromLibrary(libraryDocId, entry){
+    if(isWriteInProgress){ statusEl.textContent = 'Espera a que termine la operación anterior…'; statusEl.style.color = 'var(--text-dim)'; return; }
+    isWriteInProgress = true;
+    const padIdAtClick = currentPadId;
+    try{
+      const ok = await requireEditAccess();
+      if(!ok) return;
+      saveBtn.disabled = true;
+      statusEl.textContent = 'Asignando…';
+      statusEl.style.color = 'var(--text-dim)';
+      const batch = db.batch();
+      batch.set(padsCollection.doc(padIdAtClick), {
+        label: entry.label || '',
+        audioUrl: entry.audioUrl,
+        sourceFileName: entry.sourceFileName || null,
+        editPin: EDIT_PIN
+      }, { merge: true });
+      batch.delete(libraryCollection.doc(libraryDocId));
+      await batch.commit();
+      closeSheet();
+    }catch(err){
+      statusEl.textContent = 'Error al asignar: ' + err.message;
+      statusEl.style.color = 'var(--danger)';
+    }finally{
+      saveBtn.disabled = false;
+      isWriteInProgress = false;
+    }
+  }
 
   document.getElementById('reuseCancelBtn').addEventListener('click', () => {
     try{ player.pause(); }catch(e){}
