@@ -30,8 +30,10 @@
   }
   .topbar{
     display:flex; align-items:center; justify-content:space-between;
-    padding: max(14px, env(safe-area-inset-top)) 16px 10px 16px;
+    padding: max(14px, env(safe-area-inset-top)) 12px 10px 16px;
     border-bottom: 1px solid var(--slot-border);
+    flex-wrap: nowrap;
+    gap: 8px;
   }
   .topbar h1{
     font-size: 15px;
@@ -43,32 +45,36 @@
     display:flex;
     align-items:center;
     gap:8px;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
   .syncdot{
     width:7px; height:7px; border-radius:50%;
     background: var(--text-dim);
+    flex-shrink: 0;
   }
   .syncdot.ok{ background: var(--ok); }
   .syncdot.err{ background: var(--danger); }
-  .topbar .actions{ display:flex; gap:8px; }
+  .topbar .actions{ display:flex; gap:6px; flex-shrink: 0; }
   .iconbtn{
     background: var(--panel);
     border: 1px solid var(--slot-border);
     color: var(--text);
-    width:36px; height:36px;
+    width:34px; height:34px;
     border-radius: 10px;
-    font-size: 18px;
+    font-size: 16px;
     display:flex; align-items:center; justify-content:center;
+    flex-shrink: 0;
   }
   .iconbtn:active{ background: var(--slot-border); }
 
   #grid{
     display:grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(var(--grid-cols, 3), 1fr);
     gap: 10px;
     padding: 12px;
     padding-bottom: calc(6px + env(safe-area-inset-bottom));
-    max-width: 620px;
+    max-width: var(--grid-max-width, 620px);
     margin: 0 auto;
     perspective: 800px;
   }
@@ -77,6 +83,8 @@
     max-height: 200px;
     position: relative;
   }
+  #grid[data-cols="4"] .padFace{ font-size: clamp(11px, 2.7vw, 14px) !important; }
+  #grid[data-cols="5"] .padFace{ font-size: clamp(9.5px, 2.2vw, 12px) !important; }
   .padInner{
     position: absolute; inset: 0;
     transform-style: preserve-3d;
@@ -301,15 +309,16 @@
 </div>
 
 <div class="topbar">
-  <h1><span class="syncdot" id="syncDot"></span>Tablero de Sonidos</h1>
+  <h1><span class="syncdot" id="syncDot"></span>Tablero</h1>
   <div class="actions">
+    <button class="iconbtn" id="gridSizeBtn" title="Tamaño de botones">▦</button>
     <button class="iconbtn" id="globalStopBtn" title="Detener sonido" style="display:none; background: var(--danger); border-color: var(--danger);">■</button>
     <button class="iconbtn" id="addPadBtn" title="Agregar botón">＋</button>
   </div>
 </div>
 
 <div id="grid"></div>
-<div style="text-align:center; color:var(--text-dim); font-size:11px; padding-top:6px;">v13</div>
+<div style="text-align:center; color:var(--text-dim); font-size:11px; padding-top:6px;">v16</div>
 <div class="hint" id="hint">Toca un botón vacío para asignarle un sonido. Mantén presionado un botón lleno para editarlo.</div>
 
 <div class="overlay" id="overlay">
@@ -700,6 +709,11 @@
   const saveBtn = document.getElementById('saveBtn');
 
   let originalAudioUrlAtOpen = null;
+  // Bandera GLOBAL (no se resetea al cerrar/abrir el panel) para asegurar
+  // que nunca haya dos operaciones de guardado/borrado corriendo a la vez,
+  // aunque el usuario cierre y vuelva a abrir el editor muy rápido mientras
+  // la anterior todavía sigue trabajando en segundo plano.
+  let isWriteInProgress = false;
 
   function openSheet(padId){
     currentPadId = padId;
@@ -754,18 +768,28 @@
 
   saveBtn.addEventListener('click', async () => {
     if(currentPadId === null) return;
+    if(isWriteInProgress){ statusEl.textContent = 'Espera a que termine la operación anterior…'; statusEl.style.color = 'var(--text-dim)'; return; }
+    isWriteInProgress = true;
+    saveBtn.disabled = true; // bloquear de inmediato, antes de cualquier espera, para evitar doble toque
+    const padIdAtClick = currentPadId;
     const ok = await requireEditAccess();
-    if(!ok) return;
+    if(!ok){ saveBtn.disabled = false; isWriteInProgress = false; return; }
     const newLabel = labelInput.value.trim();
-    saveBtn.disabled = true;
     saveBtn.textContent = 'Guardando…';
     try{
+      // Consultamos el estado REAL más reciente en Firebase (no la copia local
+      // en memoria, que puede quedar desactualizada unos instantes si se
+      // hacen varias acciones muy seguidas) para saber con certeza qué sonido
+      // tenía este botón justo antes de este guardado.
+      const beforeSnap = await padsCollection.doc(padIdAtClick).get();
+      const audioUrlBeforeSave = beforeSnap.exists ? (beforeSnap.data().audioUrl || null) : null;
+
       const updateData = { label: newLabel, editPin: EDIT_PIN };
       if(pendingAudioBlob){
         let ext = pendingAudioBlob.type.split('/')[1] || 'audio';
         if(ext.includes('mp4')) ext = 'm4a';
         if(ext === 'mpeg') ext = 'mp3';
-        const path = 'sounds/' + currentPadId + '-' + Date.now() + '.' + ext;
+        const path = 'sounds/' + padIdAtClick + '-' + Date.now() + '.' + ext;
         const ref = storage.ref().child(path);
         await ref.put(pendingAudioBlob, { customMetadata: { editPin: EDIT_PIN } });
         updateData.audioUrl = await ref.getDownloadURL();
@@ -774,20 +798,22 @@
         updateData.audioUrl = pendingAudioUrl; // reutiliza el archivo ya existente, sin volver a subir
         updateData.sourceFileName = pendingSourceFileName || null;
       }
-      await padsCollection.doc(currentPadId).set(updateData, { merge: true });
+      await padsCollection.doc(padIdAtClick).set(updateData, { merge: true });
 
-      // Si el usuario eligió "reemplazar en todos", actualizamos cada botón
       // Si el usuario eligió "reemplazar" porque ya existía ese sonido en
       // otro botón: el sonido se MUEVE aquí, así que vaciamos ese otro
       // botón (nunca debe haber dos botones con el mismo sonido a la vez),
-      // y borramos el archivo viejo de Storage.
+      // y borramos el archivo viejo de Storage. Consultamos Firebase
+      // directamente (no la copia local) para encontrar a TODOS los que
+      // realmente lo tengan ahora mismo.
       if(replaceOldAudioUrl && updateData.audioUrl){
         const oldUrl = replaceOldAudioUrl;
-        const affected = pads.filter(p => p.id !== currentPadId && p.audioUrl === oldUrl);
-        if(affected.length){
+        const affectedSnap = await padsCollection.where('audioUrl', '==', oldUrl).get();
+        const affectedDocs = affectedSnap.docs.filter(d => d.id !== padIdAtClick);
+        if(affectedDocs.length){
           const batch = db.batch();
-          affected.forEach(p => {
-            batch.set(padsCollection.doc(p.id), {
+          affectedDocs.forEach(d => {
+            batch.set(d.ref, {
               label: '',
               audioUrl: null,
               sourceFileName: null,
@@ -801,18 +827,20 @@
         }catch(delErr){ /* si falla el borrado, no es crítico, solo queda un archivo huérfano */ }
       }
 
-      // Limpieza general: si este mismo botón tenía OTRO sonido antes y ahora
-      // quedó apuntando a uno distinto, borramos el anterior — siempre y
-      // cuando ningún otro botón lo siga usando (por ejemplo, vía Biblioteca).
+      // Limpieza general: si este mismo botón tenía OTRO sonido antes (según
+      // el estado real de Firebase, consultado justo arriba) y ahora quedó
+      // apuntando a uno distinto, borramos el anterior — siempre y cuando
+      // ningún otro botón lo siga usando de verdad en este momento.
       if(
         updateData.audioUrl &&
-        originalAudioUrlAtOpen &&
-        originalAudioUrlAtOpen !== updateData.audioUrl
+        audioUrlBeforeSave &&
+        audioUrlBeforeSave !== updateData.audioUrl
       ){
-        const stillUsedElsewhere = pads.some(p => p.id !== currentPadId && p.audioUrl === originalAudioUrlAtOpen);
+        const dupSnap = await padsCollection.where('audioUrl', '==', audioUrlBeforeSave).get();
+        const stillUsedElsewhere = dupSnap.docs.some(d => d.id !== padIdAtClick);
         if(!stillUsedElsewhere){
           try{
-            await storage.refFromURL(originalAudioUrlAtOpen).delete();
+            await storage.refFromURL(audioUrlBeforeSave).delete();
           }catch(delErr){ /* no crítico */ }
         }
       }
@@ -824,18 +852,28 @@
     }finally{
       saveBtn.disabled = false;
       saveBtn.textContent = 'Guardar';
+      isWriteInProgress = false;
     }
   });
 
   deleteBtn.addEventListener('click', async () => {
     if(currentPadId === null) return;
+    if(isWriteInProgress){ statusEl.textContent = 'Espera a que termine la operación anterior…'; statusEl.style.color = 'var(--text-dim)'; return; }
+    if(!window.confirm('Esto eliminará el sonido de este botón. ¿Continuar?')) return;
+    isWriteInProgress = true;
+    deleteBtn.disabled = true;
+    const padIdAtClick = currentPadId;
     const ok = await requireEditAccess();
-    if(!ok) return;
+    if(!ok){ deleteBtn.disabled = false; isWriteInProgress = false; return; }
     try{
-      const urlToClean = originalAudioUrlAtOpen;
-      await padsCollection.doc(currentPadId).set({ label:'', audioUrl:null, sourceFileName: null, editPin: EDIT_PIN }, { merge:true });
+      // Consultamos Firebase directamente (no la copia local en memoria)
+      // para saber con certeza qué sonido tiene este botón ahora mismo.
+      const beforeSnap = await padsCollection.doc(padIdAtClick).get();
+      const urlToClean = beforeSnap.exists ? (beforeSnap.data().audioUrl || null) : null;
+      await padsCollection.doc(padIdAtClick).set({ label:'', audioUrl:null, sourceFileName: null, editPin: EDIT_PIN }, { merge:true });
       if(urlToClean){
-        const stillUsedElsewhere = pads.some(p => p.id !== currentPadId && p.audioUrl === urlToClean);
+        const dupSnap = await padsCollection.where('audioUrl', '==', urlToClean).get();
+        const stillUsedElsewhere = dupSnap.docs.some(d => d.id !== padIdAtClick);
         if(!stillUsedElsewhere){
           try{ await storage.refFromURL(urlToClean).delete(); }catch(delErr){ /* no crítico */ }
         }
@@ -844,17 +882,51 @@
     }catch(err){
       statusEl.textContent = 'Error al eliminar: ' + err.message;
       statusEl.style.color = 'var(--danger)';
+    }finally{
+      deleteBtn.disabled = false;
+      isWriteInProgress = false;
     }
   });
 
+  // ---- Tamaño de la rejilla (preferencia guardada en este dispositivo) ----
+  const GRID_SIZES = [
+    { cols: 3, maxWidth: '620px' },
+    { cols: 4, maxWidth: '760px' },
+    { cols: 5, maxWidth: '900px' }
+  ];
+  let gridSizeIndex = 0;
+  try{
+    const saved = parseInt(localStorage.getItem('tablero_grid_size_index'), 10);
+    if(!isNaN(saved) && saved >= 0 && saved < GRID_SIZES.length) gridSizeIndex = saved;
+  }catch(e){}
+
+  function applyGridSize(){
+    const size = GRID_SIZES[gridSizeIndex];
+    const grid = document.getElementById('grid');
+    grid.style.setProperty('--grid-cols', size.cols);
+    grid.style.setProperty('--grid-max-width', size.maxWidth);
+    grid.setAttribute('data-cols', size.cols);
+  }
+  applyGridSize();
+
+  document.getElementById('gridSizeBtn').addEventListener('click', () => {
+    gridSizeIndex = (gridSizeIndex + 1) % GRID_SIZES.length;
+    try{ localStorage.setItem('tablero_grid_size_index', gridSizeIndex); }catch(e){}
+    applyGridSize();
+  });
+
   document.getElementById('addPadBtn').addEventListener('click', async () => {
-    const ok = await requireEditAccess();
-    if(!ok) return;
-    const maxOrder = pads.reduce((m,p) => Math.max(m, p.order || 0), -1);
+    if(isWriteInProgress){ hintEl.textContent = 'Espera a que termine la operación anterior…'; hintEl.style.color = 'var(--text-dim)'; return; }
+    isWriteInProgress = true;
     try{
+      const ok = await requireEditAccess();
+      if(!ok) return;
+      const maxOrder = pads.reduce((m,p) => Math.max(m, p.order || 0), -1);
       await padsCollection.add({ label:'', audioUrl:null, order: maxOrder + 1, editPin: EDIT_PIN });
     }catch(err){
       hintEl.textContent = 'No se pudo agregar el botón: ' + err.message;
+    }finally{
+      isWriteInProgress = false;
     }
   });
 
@@ -967,16 +1039,18 @@
   });
 
   async function reorderCurrentPad(toStart){
-    const ok = await requireEditAccess();
-    if(!ok) return;
-    const current = pads.find(p => p.id === currentPadId);
-    if(!current) return;
-    const rest = pads.filter(p => p.id !== currentPadId).sort((a,b) => (a.order||0) - (b.order||0));
-    const newOrder = toStart ? [current, ...rest] : [...rest, current];
-    saveBtn.disabled = true;
-    statusEl.textContent = 'Moviendo…';
-    statusEl.style.color = 'var(--text-dim)';
+    if(isWriteInProgress){ statusEl.textContent = 'Espera a que termine la operación anterior…'; statusEl.style.color = 'var(--text-dim)'; return; }
+    isWriteInProgress = true;
     try{
+      const ok = await requireEditAccess();
+      if(!ok) return;
+      const current = pads.find(p => p.id === currentPadId);
+      if(!current) return;
+      const rest = pads.filter(p => p.id !== currentPadId).sort((a,b) => (a.order||0) - (b.order||0));
+      const newOrder = toStart ? [current, ...rest] : [...rest, current];
+      saveBtn.disabled = true;
+      statusEl.textContent = 'Moviendo…';
+      statusEl.style.color = 'var(--text-dim)';
       const batch = db.batch();
       newOrder.forEach((p, idx) => {
         batch.set(padsCollection.doc(p.id), { order: idx, editPin: EDIT_PIN }, { merge: true });
@@ -989,6 +1063,7 @@
       statusEl.style.color = 'var(--danger)';
     }finally{
       saveBtn.disabled = false;
+      isWriteInProgress = false;
     }
   }
 
@@ -996,15 +1071,17 @@
   document.getElementById('moveEndBtn').addEventListener('click', () => reorderCurrentPad(false));
 
   async function swapWithPad(otherPadId){
-    const ok = await requireEditAccess();
-    if(!ok) return;
-    const a = pads.find(p => p.id === currentPadId);
-    const b = pads.find(p => p.id === otherPadId);
-    if(!a || !b) return;
-    saveBtn.disabled = true;
-    statusEl.textContent = 'Intercambiando…';
-    statusEl.style.color = 'var(--text-dim)';
+    if(isWriteInProgress){ statusEl.textContent = 'Espera a que termine la operación anterior…'; statusEl.style.color = 'var(--text-dim)'; return; }
+    isWriteInProgress = true;
     try{
+      const ok = await requireEditAccess();
+      if(!ok) return;
+      const a = pads.find(p => p.id === currentPadId);
+      const b = pads.find(p => p.id === otherPadId);
+      if(!a || !b) return;
+      saveBtn.disabled = true;
+      statusEl.textContent = 'Intercambiando…';
+      statusEl.style.color = 'var(--text-dim)';
       const batch = db.batch();
       batch.set(padsCollection.doc(a.id), {
         label: b.label || '',
@@ -1025,6 +1102,7 @@
       statusEl.style.color = 'var(--danger)';
     }finally{
       saveBtn.disabled = false;
+      isWriteInProgress = false;
     }
   }
 
