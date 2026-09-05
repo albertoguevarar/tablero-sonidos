@@ -299,7 +299,7 @@
 </div>
 
 <div id="grid"></div>
-<div style="text-align:center; color:var(--text-dim); font-size:11px; padding-top:6px;">v8</div>
+<div style="text-align:center; color:var(--text-dim); font-size:11px; padding-top:6px;">v10</div>
 <div class="hint" id="hint">Toca un botón vacío para asignarle un sonido. Mantén presionado un botón lleno para editarlo.</div>
 
 <div class="overlay" id="overlay">
@@ -374,8 +374,7 @@
     <h2>Ya existe un sonido con ese nombre</h2>
     <div class="conflictText" id="conflictText"></div>
     <div class="conflictBtns">
-      <button class="replaceBtn" id="conflictReplaceBtn" type="button">Reemplazar en todos los botones que lo usan</button>
-      <button class="newBtn" id="conflictNewBtn" type="button">Guardar como sonido nuevo y aparte</button>
+      <button class="replaceBtn" id="conflictReplaceBtn" type="button">Reemplazar (mueve el sonido a este botón)</button>
       <button class="cancelBtn2" id="conflictCancelBtn" type="button">Cancelar</button>
     </div>
   </div>
@@ -763,11 +762,14 @@
         if(pendingSourceFileName) updateData.sourceFileName = pendingSourceFileName;
       } else if(pendingAudioUrl){
         updateData.audioUrl = pendingAudioUrl; // reutiliza el archivo ya existente, sin volver a subir
+        updateData.sourceFileName = pendingSourceFileName || null;
       }
       await padsCollection.doc(currentPadId).set(updateData, { merge: true });
 
       // Si el usuario eligió "reemplazar en todos", actualizamos cada botón
-      // que usaba el sonido anterior para que apunte al archivo nuevo,
+      // Si el usuario eligió "reemplazar" porque ya existía ese sonido en
+      // otro botón: el sonido se MUEVE aquí, así que vaciamos ese otro
+      // botón (nunca debe haber dos botones con el mismo sonido a la vez),
       // y borramos el archivo viejo de Storage.
       if(replaceOldAudioUrl && updateData.audioUrl){
         const oldUrl = replaceOldAudioUrl;
@@ -776,8 +778,9 @@
           const batch = db.batch();
           affected.forEach(p => {
             batch.set(padsCollection.doc(p.id), {
-              audioUrl: updateData.audioUrl,
-              sourceFileName: updateData.sourceFileName || null,
+              label: '',
+              audioUrl: null,
+              sourceFileName: null,
               editPin: EDIT_PIN
             }, { merge: true });
           });
@@ -897,7 +900,7 @@
         item.innerHTML = `
           <div class="rname">${escapeHtml(p.label || 'Sin nombre')}</div>
           <button class="rplay" type="button">▶</button>
-          <button class="rpick" type="button">Usar</button>
+          <button class="rpick" type="button">Mover aquí</button>
         `;
         item.querySelector('.rplay').addEventListener('click', () => {
           unlockAudio();
@@ -905,13 +908,9 @@
           player.src = p.audioUrl;
           player.play().catch(()=>{});
         });
-        item.querySelector('.rpick').addEventListener('click', () => {
-          pendingAudioBlob = null;
-          pendingAudioLocalUrl = null;
-          pendingAudioUrl = p.audioUrl;
-          pendingAudioLabel = p.label;
-          updateStatus();
+        item.querySelector('.rpick').addEventListener('click', async () => {
           reuseOverlay.classList.remove('open');
+          await swapWithPad(p.id);
         });
         reuseList.appendChild(item);
       });
@@ -1032,33 +1031,24 @@
     pendingSourceFileName = file.name;
     let name = file.name.replace(/\.[^/.]+$/, ''); // quita la extensión
     name = name.replace(/[_-]+/g, ' ').trim();
-    if(matchedPad){
-      // ya existe con ese nombre; si guarda como nuevo, diferenciamos la etiqueta
-      const dup = pads.some(p => p.id !== currentPadId && (p.label || '').trim().toLowerCase() === name.toLowerCase());
-      if(dup) name = name + ' (2)';
-    }
     labelInput.value = name.slice(0, 24);
     updateStatus();
   }
 
   function askFileConflict(file, matchedPad){
     return new Promise((resolve) => {
-      conflictText.innerHTML = 'El archivo <b>' + escapeHtml(file.name) + '</b> tiene el mismo nombre que el sonido usado en <b>' + escapeHtml(matchedPad.label || 'otro botón') + '</b>.';
+      conflictText.innerHTML = 'Ya existe un sonido llamado <b>' + escapeHtml(file.name) + '</b> en el botón <b>' + escapeHtml(matchedPad.label || 'otro botón') + '</b>. Un mismo sonido no puede estar en dos botones a la vez.';
       conflictOverlay.classList.add('open');
       const replaceBtn = document.getElementById('conflictReplaceBtn');
-      const newBtn = document.getElementById('conflictNewBtn');
       const cancelBtn2 = document.getElementById('conflictCancelBtn');
       const cleanup = () => {
         conflictOverlay.classList.remove('open');
         replaceBtn.removeEventListener('click', onReplace);
-        newBtn.removeEventListener('click', onNew);
         cancelBtn2.removeEventListener('click', onCancel);
       };
       const onReplace = () => { cleanup(); resolve('replace'); };
-      const onNew = () => { cleanup(); resolve('new'); };
       const onCancel = () => { cleanup(); resolve('cancel'); };
       replaceBtn.addEventListener('click', onReplace);
-      newBtn.addEventListener('click', onNew);
       cancelBtn2.addEventListener('click', onCancel);
     });
   }
@@ -1078,11 +1068,7 @@
     if(matchedPad){
       const choice = await askFileConflict(file, matchedPad);
       if(choice === 'cancel') return;
-      if(choice === 'replace'){
-        replaceOldAudioUrl = matchedPad.audioUrl;
-      } else {
-        replaceOldAudioUrl = null;
-      }
+      replaceOldAudioUrl = matchedPad.audioUrl;
       applyChosenFile(file, matchedPad);
     } else {
       replaceOldAudioUrl = null;
