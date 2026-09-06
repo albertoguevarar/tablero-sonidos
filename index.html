@@ -69,6 +69,16 @@
     flex-shrink: 0;
   }
   .iconbtn:active{ background: var(--slot-border); }
+  #globalStopBtn{
+    background: var(--danger);
+    border-color: var(--danger);
+    border-radius: 0;
+  }
+  #deleteModeBtn.active{
+    background: var(--danger);
+    border-color: var(--danger);
+    color: #fff;
+  }
 
   #grid{
     display:grid;
@@ -164,6 +174,17 @@
     font-size: clamp(12px, 3vw, 16px);
   }
   .padFace .editIcon:active{ background: rgba(0,0,0,0.65); }
+  .padFace .deleteBadge{
+    position:absolute; top:6px; left:6px;
+    width: clamp(24px, 6.5vw, 32px); height: clamp(24px, 6.5vw, 32px);
+    border-radius:8px;
+    background: var(--danger);
+    color:#fff;
+    display:flex; align-items:center; justify-content:center;
+    font-size: clamp(14px, 3.5vw, 18px);
+    font-weight:800;
+    pointer-events:none;
+  }
   .padFace .plus{
     font-size: 26px;
     font-weight: 300;
@@ -314,16 +335,17 @@
 </div>
 
 <div class="topbar">
-  <h1><span class="syncdot" id="syncDot"></span>Tablero</h1>
+  <h1><span class="syncdot" id="syncDot"></span>Sonidos</h1>
   <div class="actions">
     <button class="iconbtn" id="gridSizeBtn" title="Tamaño de botones">▦</button>
-    <button class="iconbtn" id="globalStopBtn" title="Detener sonido" style="display:none; background: var(--danger); border-color: var(--danger);">■</button>
+    <button class="iconbtn" id="globalStopBtn" title="Detener sonido" style="display:none;"></button>
+    <button class="iconbtn" id="deleteModeBtn" title="Eliminar botones">－</button>
     <button class="iconbtn" id="addPadBtn" title="Agregar botón">＋</button>
   </div>
 </div>
 
 <div id="grid"></div>
-<div style="text-align:center; color:var(--text-dim); font-size:11px; padding-top:6px;">v19</div>
+<div style="text-align:center; color:var(--text-dim); font-size:11px; padding-top:6px;">v20</div>
 <div class="hint" id="hint">Toca un botón vacío para asignarle un sonido. Mantén presionado un botón lleno para editarlo.</div>
 
 <div class="overlay" id="overlay">
@@ -475,6 +497,7 @@
   let pendingCheckCount = 0;
   const checkedUrls = {}; // padId -> última audioUrl ya revisada
   let currentlyPlayingPadId = null;
+  let deleteMode = false; // modo de borrado rápido desde la rejilla
   const EDIT_PIN = '9062';
   let sessionPin = null; // se guarda en memoria mientras esta pestaña esté abierta
 
@@ -525,9 +548,10 @@
     const frontContent = pad.audioUrl
       ? `${escapeHtml(pad.label || 'Sin nombre')}<div class="editIcon">✎</div>`
       : `<div class="plus">＋</div>${escapeHtml(pad.label || 'Vacío')}`;
+    const deleteBadge = deleteMode ? `<div class="deleteBadge">✕</div>` : '';
     const backContent = `<div class="backLabel">${escapeHtml(pad.label || 'Sin nombre')}</div><div class="backStop">■</div>`;
     return `<div class="padInner">`
-      + `<div class="padFace padFront">${frontContent}</div>`
+      + `<div class="padFace padFront">${frontContent}${deleteBadge}</div>`
       + `<div class="padFace padBack">${backContent}</div>`
       + `</div>`;
   }
@@ -557,6 +581,7 @@
         const t = e.touches[0];
         touchStartX = t.clientX;
         touchStartY = t.clientY;
+        if(deleteMode) return; // en modo eliminar no hay "mantener presionado"
         pressTimer = setTimeout(() => { longPressed = true; openSheet(pad.id); }, 420);
       }, {passive:true});
 
@@ -572,11 +597,18 @@
 
       el.addEventListener('touchend', () => {
         clearTimeout(pressTimer);
-        if(longPressed || touchMoved) return; // fue un scroll, no un toque real
+        if(touchMoved) return; // fue un scroll, no un toque real
+        if(deleteMode){ deletePadFromGrid(pad); return; }
+        if(longPressed) return;
         if(pad.audioUrl){ togglePad(pad); } else { openSheet(pad.id); }
       });
 
       el.addEventListener('click', (ev) => {
+        if(deleteMode){
+          ev.stopPropagation();
+          deletePadFromGrid(pad);
+          return;
+        }
         if(ev.target.classList.contains('editIcon')){
           ev.stopPropagation();
           openSheet(pad.id);
@@ -913,6 +945,69 @@
       isWriteInProgress = false;
     }
   });
+
+  // ---- Modo eliminar (borrado rápido desde la rejilla) ----
+  const deleteModeBtn = document.getElementById('deleteModeBtn');
+
+  function setDeleteMode(on){
+    deleteMode = on;
+    deleteModeBtn.classList.toggle('active', on);
+    renderGrid();
+  }
+
+  deleteModeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setDeleteMode(!deleteMode);
+  });
+
+  // Se apaga tocando de nuevo este mismo botón (arriba) o tocando cualquier
+  // cosa que no sea un botón del tablero (fuera de los pads).
+  function handleOutsideTapForDeleteMode(e){
+    if(!deleteMode) return;
+    if(e.target.closest('#deleteModeBtn')) return;
+    if(e.target.closest('.pad')) return;
+    setDeleteMode(false);
+  }
+  document.addEventListener('click', handleOutsideTapForDeleteMode);
+  document.addEventListener('touchend', handleOutsideTapForDeleteMode);
+
+  async function deletePadFromGrid(pad){
+    if(isWriteInProgress){
+      hintEl.textContent = 'Espera a que termine la operación anterior…';
+      hintEl.style.color = 'var(--text-dim)';
+      return;
+    }
+    if(!window.confirm('Esto eliminará este botón del tablero. El sonido quedará guardado en la Biblioteca para poder usarlo después. ¿Continuar?')) return;
+    isWriteInProgress = true;
+
+    if(currentlyPlayingPadId === pad.id){
+      stopCurrentlyPlaying();
+    }
+
+    const ok = await requireEditAccess();
+    if(!ok){ isWriteInProgress = false; return; }
+    try{
+      const beforeSnap = await padsCollection.doc(pad.id).get();
+      const beforeData = beforeSnap.exists ? beforeSnap.data() : {};
+      const urlToArchive = beforeData.audioUrl || null;
+
+      if(urlToArchive){
+        await libraryCollection.add({
+          label: beforeData.label || '',
+          audioUrl: urlToArchive,
+          sourceFileName: beforeData.sourceFileName || null,
+          editPin: EDIT_PIN
+        });
+      }
+
+      await padsCollection.doc(pad.id).delete();
+    }catch(err){
+      hintEl.textContent = 'No se pudo eliminar: ' + err.message;
+      hintEl.style.color = 'var(--danger)';
+    }finally{
+      isWriteInProgress = false;
+    }
+  }
 
   // ---- Tamaño de la rejilla (preferencia guardada en este dispositivo) ----
   const GRID_SIZES = [
