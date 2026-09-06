@@ -354,7 +354,7 @@
 <div id="startOverlay">
   <button id="startBtn" disabled>Cargando…</button>
   <div id="startError"></div>
-  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v28</div>
+  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v29</div>
 </div>
 
 <div class="topbar" id="topbar">
@@ -462,7 +462,7 @@
       <p><b>Clave de edición:</b> la primera vez que agregues, edites, borres o muevas un botón en una sesión, se pedirá una clave de 4 dígitos; después no se vuelve a pedir mientras no cierres la pestaña.</p>
       <p>Un mismo sonido no puede estar en dos botones a la vez: si subes un archivo que ya está en otro botón, se te preguntará si quieres moverlo aquí.</p>
     </div>
-    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v28</div>
+    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v29</div>
     <div class="footerrow">
       <button class="close" id="infoCloseBtn">Cerrar</button>
     </div>
@@ -633,6 +633,8 @@
       let longPressed = false;
       let touchMoved = false;
       let touchStartX = 0, touchStartY = 0;
+      let mousePressTimer = null;
+      let mouseLongPressed = false;
 
       el.addEventListener('touchstart', (e) => {
         longPressed = false;
@@ -662,6 +664,23 @@
         if(pad.audioUrl){ togglePad(pad); } else { openSheet(pad.id); }
       });
 
+      // Equivalente a "mantener presionado" pero con mouse, para PC/Mac
+      // (los dispositivos táctiles ya lo resuelven con touchstart/touchend arriba).
+      el.addEventListener('mousedown', () => {
+        if('ontouchstart' in window) return;
+        if(deleteMode) return; // en modo eliminar no hay "mantener presionado"
+        mouseLongPressed = false;
+        mousePressTimer = setTimeout(() => { mouseLongPressed = true; openSheet(pad.id); }, 420);
+      });
+
+      el.addEventListener('mouseup', () => {
+        clearTimeout(mousePressTimer);
+      });
+
+      el.addEventListener('mouseleave', () => {
+        clearTimeout(mousePressTimer);
+      });
+
       el.addEventListener('click', (ev) => {
         if(deleteMode){
           ev.stopPropagation();
@@ -669,6 +688,7 @@
           return;
         }
         if('ontouchstart' in window) return;
+        if(mouseLongPressed){ mouseLongPressed = false; return; } // ya se abrió el editor al mantener presionado
         if(pad.audioUrl){ togglePad(pad); } else { openSheet(pad.id); }
       });
 
