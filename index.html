@@ -323,7 +323,7 @@
 </div>
 
 <div id="grid"></div>
-<div style="text-align:center; color:var(--text-dim); font-size:11px; padding-top:6px;">v18</div>
+<div style="text-align:center; color:var(--text-dim); font-size:11px; padding-top:6px;">v19</div>
 <div class="hint" id="hint">Toca un botón vacío para asignarle un sonido. Mantén presionado un botón lleno para editarlo.</div>
 
 <div class="overlay" id="overlay">
@@ -734,7 +734,7 @@
     resetPreviewButton();
     labelInput.value = (pad && pad.label) || '';
     updateStatus(pad && pad.audioUrl ? 'ya-tiene' : 'vacio');
-    deleteBtn.style.display = (pad && pad.audioUrl) ? 'block' : 'none';
+    deleteBtn.style.display = pad ? 'block' : 'none'; // ahora "Eliminar" borra el botón completo, incluso si está vacío
     document.getElementById('swapLinkRow').style.display = (pad && pad.audioUrl) ? 'block' : 'none';
     sheetTitle.textContent = (pad && pad.audioUrl) ? 'Editar botón' : 'Nuevo botón';
     saveBtn.disabled = false;
