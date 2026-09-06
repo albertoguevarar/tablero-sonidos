@@ -82,7 +82,8 @@
 
   #grid{
     display:grid;
-    grid-template-columns: repeat(var(--grid-cols, 3), 1fr);
+    grid-template-columns: repeat(var(--grid-cols, 3), var(--pad-size, 1fr));
+    justify-content: center;
     gap: 10px;
     padding: 12px;
     padding-bottom: calc(6px + env(safe-area-inset-bottom));
@@ -320,7 +321,7 @@
      para que quepan más botones por fila y no haya que hacer tanto scroll */
   @media (orientation: landscape) and (max-height: 500px){
     #grid{
-      grid-template-columns: repeat(5, 1fr);
+      grid-template-columns: repeat(5, var(--pad-size, 1fr));
       max-width: 900px;
     }
     .pad{ max-height: 130px; }
@@ -334,7 +335,7 @@
   <div id="startError"></div>
 </div>
 
-<div class="topbar">
+<div class="topbar" id="topbar">
   <h1><span class="syncdot" id="syncDot"></span>Sonidos</h1>
   <div class="actions">
     <button class="iconbtn" id="gridSizeBtn" title="Tamaño de botones">▦</button>
@@ -345,7 +346,7 @@
 </div>
 
 <div id="grid"></div>
-<div style="text-align:center; color:var(--text-dim); font-size:11px; padding-top:6px;">v21</div>
+<div id="versionTag" style="text-align:center; color:var(--text-dim); font-size:11px; padding-top:6px;">v22</div>
 <div class="hint" id="hint">Toca un botón vacío para asignarle un sonido. Mantén presionado un botón lleno para editarlo.</div>
 
 <div class="overlay" id="overlay">
@@ -627,7 +628,67 @@
         setTimeout(() => checkPadAudio(pad), delay);
       }
     });
+    recomputePadSize();
   }
+
+  // ---- Tamaño dinámico de botones: calcula el tamaño exacto para que quepan
+  // filas completas en la pantalla, sin dejar la última fila cortada a la
+  // mitad. Se ajusta solo a cada teléfono/tablet y a cada cantidad de
+  // botones (nunca se hacen más chicos que MIN_PAD_SIZE; si con ese mínimo
+  // ya no caben todas las filas, esas de más simplemente quedan abajo del
+  // scroll, en vez de reducir los botones a un tamaño poco usable).
+  const MIN_PAD_SIZE = 64;
+
+  function recomputePadSize(){
+    if(!pads.length) return;
+    const grid = document.getElementById('grid');
+    const gridStyle = getComputedStyle(grid);
+
+    // Leemos el número real de columnas ya aplicado (toma en cuenta tanto
+    // el selector ▦ como la regla especial de orientación horizontal).
+    const trackList = gridStyle.gridTemplateColumns.trim().split(/\s+/).filter(Boolean);
+    const cols = trackList.length || 3;
+    const rows = Math.ceil(pads.length / cols);
+
+    const rowGap = parseFloat(gridStyle.rowGap) || 10;
+    const colGap = parseFloat(gridStyle.columnGap) || 10;
+    const padLeft = parseFloat(gridStyle.paddingLeft) || 0;
+    const padRight = parseFloat(gridStyle.paddingRight) || 0;
+    const padTop = parseFloat(gridStyle.paddingTop) || 0;
+    const padBottom = parseFloat(gridStyle.paddingBottom) || 0;
+    const maxWidthPx = parseFloat(gridStyle.maxWidth) || 620;
+
+    // Tamaño máximo que cabe a lo ancho (como antes: llenando las columnas).
+    const containerWidth = Math.min(window.innerWidth, maxWidthPx);
+    const contentWidth = containerWidth - padLeft - padRight;
+    const widthBasedSize = (contentWidth - colGap * (cols - 1)) / cols;
+
+    // Espacio vertical real disponible: lo que sobra de pantalla después de
+    // la barra superior, el padding de la rejilla, y el texto de versión +
+    // el texto de ayuda de abajo.
+    const topbarEl = document.getElementById('topbar');
+    const versionEl = document.getElementById('versionTag');
+    const topbarHeight = topbarEl ? topbarEl.getBoundingClientRect().height : 0;
+    const belowGridHeight = (versionEl ? versionEl.offsetHeight : 0) + (hintEl ? hintEl.offsetHeight : 0);
+    const availableHeight = window.innerHeight - topbarHeight - padTop - padBottom - belowGridHeight;
+    const heightBasedSize = (availableHeight - rowGap * (rows - 1)) / rows;
+
+    // Encoge los botones lo justo para que quepan filas completas, pero
+    // nunca más allá del mínimo usable ni más grande que el ancho disponible.
+    const size = Math.min(widthBasedSize, Math.max(heightBasedSize, MIN_PAD_SIZE));
+    if(isFinite(size) && size > 0){
+      grid.style.setProperty('--pad-size', size + 'px');
+    }
+  }
+
+  let padSizeResizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(padSizeResizeTimer);
+    padSizeResizeTimer = setTimeout(recomputePadSize, 150);
+  });
+  window.addEventListener('orientationchange', () => {
+    setTimeout(recomputePadSize, 150);
+  });
 
   function setPadStatus(padId, status){
     padStatus[padId] = status;
@@ -1030,6 +1091,7 @@
     grid.style.setProperty('--grid-cols', size.cols);
     grid.style.setProperty('--grid-max-width', size.maxWidth);
     grid.setAttribute('data-cols', size.cols);
+    recomputePadSize();
   }
   applyGridSize();
 
