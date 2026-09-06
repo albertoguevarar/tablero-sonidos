@@ -354,7 +354,7 @@
 <div id="startOverlay">
   <button id="startBtn" disabled>Cargando…</button>
   <div id="startError"></div>
-  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v30</div>
+  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v31</div>
 </div>
 
 <div class="topbar" id="topbar">
@@ -462,7 +462,7 @@
       <p><b>Clave de edición:</b> la primera vez que agregues, edites, borres o muevas un botón en una sesión, se pedirá una clave de 4 dígitos; después no se vuelve a pedir mientras no cierres la pestaña.</p>
       <p>Un mismo sonido no puede estar en dos botones a la vez: si subes un archivo que ya está en otro botón, se te preguntará si quieres moverlo aquí.</p>
     </div>
-    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v30</div>
+    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v31</div>
     <div class="footerrow">
       <button class="close" id="infoCloseBtn">Cerrar</button>
     </div>
@@ -1205,7 +1205,11 @@
       const ok = await requireEditAccess();
       if(!ok) return;
       const maxOrder = pads.reduce((m,p) => Math.max(m, p.order || 0), -1);
-      await padsCollection.add({ label:'', audioUrl:null, order: maxOrder + 1, editPin: EDIT_PIN });
+      const ref = await padsCollection.add({ label:'', audioUrl:null, order: maxOrder + 1, editPin: EDIT_PIN });
+      // Abre de una vez la ventana para ponerle nombre y sonido: antes se
+      // creaba solo el botón vacío (con el mismo aspecto del ＋ fantasma),
+      // así que un solo toque parecía no hacer nada hasta tocar de nuevo.
+      openSheet(ref.id);
     }catch(err){
       showStatusBanner('No se pudo agregar el botón: ' + err.message, true);
     }finally{
