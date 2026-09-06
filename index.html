@@ -354,7 +354,7 @@
 <div id="startOverlay">
   <button id="startBtn" disabled>Cargando…</button>
   <div id="startError"></div>
-  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v31</div>
+  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v32</div>
 </div>
 
 <div class="topbar" id="topbar">
@@ -462,7 +462,7 @@
       <p><b>Clave de edición:</b> la primera vez que agregues, edites, borres o muevas un botón en una sesión, se pedirá una clave de 4 dígitos; después no se vuelve a pedir mientras no cierres la pestaña.</p>
       <p>Un mismo sonido no puede estar en dos botones a la vez: si subes un archivo que ya está en otro botón, se te preguntará si quieres moverlo aquí.</p>
     </div>
-    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v31</div>
+    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v32</div>
     <div class="footerrow">
       <button class="close" id="infoCloseBtn">Cerrar</button>
     </div>
@@ -1013,24 +1013,38 @@
         }
         try{
           await storage.refFromURL(oldUrl).delete();
-        }catch(delErr){ /* si falla el borrado, no es crítico, solo queda un archivo huérfano */ }
+        }catch(delErr){
+          // Ya NO se silencia: si el borrado falla (por ejemplo porque las
+          // reglas de seguridad de Storage no coinciden con las publicadas),
+          // queda un archivo huérfano en Storage — hay que verlo para poder
+          // corregirlo, en vez de que se acumule sin que nadie se entere.
+          console.error('No se pudo borrar el sonido anterior en Storage:', oldUrl, delErr);
+          showStatusBanner('Aviso: no se pudo borrar un sonido anterior en Storage (' + delErr.message + '). Quedó un archivo huérfano — revisa las reglas de seguridad de Storage.', true);
+        }
       }
 
       // Limpieza general: si este mismo botón tenía OTRO sonido antes (según
       // el estado real de Firebase, consultado justo arriba) y ahora quedó
       // apuntando a uno distinto, borramos el anterior — siempre y cuando
-      // ningún otro botón lo siga usando de verdad en este momento.
+      // ningún otro botón NI la Biblioteca lo sigan usando de verdad en
+      // este momento (antes solo se revisaban los botones).
       if(
         updateData.audioUrl &&
         audioUrlBeforeSave &&
         audioUrlBeforeSave !== updateData.audioUrl
       ){
-        const dupSnap = await padsCollection.where('audioUrl', '==', audioUrlBeforeSave).get();
-        const stillUsedElsewhere = dupSnap.docs.some(d => d.id !== padIdAtClick);
+        const [dupSnap, dupLibrarySnap] = await Promise.all([
+          padsCollection.where('audioUrl', '==', audioUrlBeforeSave).get(),
+          libraryCollection.where('audioUrl', '==', audioUrlBeforeSave).get()
+        ]);
+        const stillUsedElsewhere = dupSnap.docs.some(d => d.id !== padIdAtClick) || !dupLibrarySnap.empty;
         if(!stillUsedElsewhere){
           try{
             await storage.refFromURL(audioUrlBeforeSave).delete();
-          }catch(delErr){ /* no crítico */ }
+          }catch(delErr){
+            console.error('No se pudo borrar el sonido anterior en Storage:', audioUrlBeforeSave, delErr);
+            showStatusBanner('Aviso: no se pudo borrar un sonido anterior en Storage (' + delErr.message + '). Quedó un archivo huérfano — revisa las reglas de seguridad de Storage.', true);
+          }
         }
       }
 
