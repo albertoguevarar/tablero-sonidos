@@ -354,7 +354,7 @@
 <div id="startOverlay">
   <button id="startBtn" disabled>Cargando…</button>
   <div id="startError"></div>
-  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v29</div>
+  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v30</div>
 </div>
 
 <div class="topbar" id="topbar">
@@ -462,7 +462,7 @@
       <p><b>Clave de edición:</b> la primera vez que agregues, edites, borres o muevas un botón en una sesión, se pedirá una clave de 4 dígitos; después no se vuelve a pedir mientras no cierres la pestaña.</p>
       <p>Un mismo sonido no puede estar en dos botones a la vez: si subes un archivo que ya está en otro botón, se te preguntará si quieres moverlo aquí.</p>
     </div>
-    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v29</div>
+    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v30</div>
     <div class="footerrow">
       <button class="close" id="infoCloseBtn">Cerrar</button>
     </div>
@@ -729,11 +729,11 @@
   const MIN_PAD_SIZE = 64;
 
   function recomputePadSize(){
-    // Cuenta también el botón fantasma de ＋ al final (ocupa una celda más),
-    // salvo en modo eliminar o si ya hay un botón vacío (mismo criterio que renderGrid).
-    const hasEmptyPad = pads.some((p) => !p.audioUrl);
-    const totalCount = pads.length + (deleteMode || hasEmptyPad ? 0 : 1);
-    if(!totalCount) return;
+    // El tamaño se calcula solo con los botones reales — el fantasma de ＋
+    // al final NUNCA cuenta para este cálculo, para que nunca encoja los
+    // botones reales ni deje espacio vacío a los lados; si no cabe en la
+    // última fila, simplemente queda debajo del scroll.
+    if(!pads.length) return;
     const grid = document.getElementById('grid');
     const gridStyle = getComputedStyle(grid);
 
@@ -741,7 +741,7 @@
     // el selector ▦ como la regla especial de orientación horizontal).
     const trackList = gridStyle.gridTemplateColumns.trim().split(/\s+/).filter(Boolean);
     const cols = trackList.length || 3;
-    const rows = Math.ceil(totalCount / cols);
+    const rows = Math.ceil(pads.length / cols);
 
     const rowGap = parseFloat(gridStyle.rowGap) || 10;
     const colGap = parseFloat(gridStyle.columnGap) || 10;
