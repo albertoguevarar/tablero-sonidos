@@ -345,7 +345,7 @@
 </div>
 
 <div id="grid"></div>
-<div style="text-align:center; color:var(--text-dim); font-size:11px; padding-top:6px;">v20</div>
+<div style="text-align:center; color:var(--text-dim); font-size:11px; padding-top:6px;">v21</div>
 <div class="hint" id="hint">Toca un botón vacío para asignarle un sonido. Mantén presionado un botón lleno para editarlo.</div>
 
 <div class="overlay" id="overlay">
@@ -961,7 +961,11 @@
   });
 
   // Se apaga tocando de nuevo este mismo botón (arriba) o tocando cualquier
-  // cosa que no sea un botón del tablero (fuera de los pads).
+  // cosa que no sea un botón del tablero (fuera de los pads). Usamos solo
+  // 'click' (no 'touchend') a propósito: el navegador NO dispara 'click'
+  // cuando el toque terminó en un scroll/arrastre, así que hacer scroll en
+  // la rejilla para ver más botones nunca apaga el modo eliminar — solo lo
+  // apaga un toque real (sin arrastre) fuera de los botones.
   function handleOutsideTapForDeleteMode(e){
     if(!deleteMode) return;
     if(e.target.closest('#deleteModeBtn')) return;
@@ -969,7 +973,6 @@
     setDeleteMode(false);
   }
   document.addEventListener('click', handleOutsideTapForDeleteMode);
-  document.addEventListener('touchend', handleOutsideTapForDeleteMode);
 
   async function deletePadFromGrid(pad){
     if(isWriteInProgress){
