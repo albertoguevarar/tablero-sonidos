@@ -288,7 +288,8 @@
 
   #fileInput{ display:none; }
 
-  .hint{ font-size: 12px; color: var(--text-dim); text-align:center; padding: 10px 20px 4px 20px; }
+  .hint{ display:none; font-size: 12px; color: var(--text-dim); text-align:center; padding: 10px 20px 4px 20px; }
+  .hint.show{ display:block; }
 
   #startOverlay{
     position:fixed; inset:0; background: var(--bg); z-index: 100;
@@ -332,6 +333,7 @@
 
 <div id="startOverlay">
   <button id="startBtn" disabled>Cargando…</button>
+  <div style="text-align:center; color:var(--text-dim); font-size:11px; padding-top:6px;">v23</div>
   <div id="startError"></div>
 </div>
 
@@ -342,12 +344,12 @@
     <button class="iconbtn" id="globalStopBtn" title="Detener sonido" style="display:none;"></button>
     <button class="iconbtn" id="deleteModeBtn" title="Eliminar botones">－</button>
     <button class="iconbtn" id="addPadBtn" title="Agregar botón">＋</button>
+    <button class="iconbtn" id="infoBtn" title="Cómo usar">ⓘ</button>
   </div>
 </div>
 
 <div id="grid"></div>
-<div id="versionTag" style="text-align:center; color:var(--text-dim); font-size:11px; padding-top:6px;">v22</div>
-<div class="hint" id="hint">Toca un botón vacío para asignarle un sonido. Mantén presionado un botón lleno para editarlo.</div>
+<div class="hint" id="hint"></div>
 
 <div class="overlay" id="overlay">
   <div class="sheet">
@@ -427,6 +429,17 @@
   </div>
 </div>
 
+<div class="overlay" id="infoOverlay">
+  <div class="sheet">
+    <h2>Cómo usar el tablero</h2>
+    <div class="conflictText">Toca un botón vacío para asignarle un sonido. Mantén presionado un botón lleno para editarlo.</div>
+    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin-bottom:16px;">v23</div>
+    <div class="footerrow">
+      <button class="close" id="infoCloseBtn">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <input type="file" id="fileInput" accept="audio/*">
 
 <!-- Firebase (versión compatible, sin necesidad de npm/bundler) -->
@@ -453,6 +466,22 @@
 
   const syncDot = document.getElementById('syncDot');
   const hintEl = document.getElementById('hint');
+
+  // El tablero se mantiene limpio: este texto de abajo solo aparece cuando
+  // hay algo real que avisar (un error, "espera un momento", etc.) y se
+  // oculta solo cuando ya no aplica. Las instrucciones fijas y la versión
+  // viven ahora en el botón "ⓘ" de arriba.
+  function showStatusBanner(text, isError){
+    hintEl.textContent = text;
+    hintEl.style.color = isError ? 'var(--danger)' : 'var(--text-dim)';
+    hintEl.classList.add('show');
+    recomputePadSize();
+  }
+  function hideStatusBanner(){
+    hintEl.textContent = '';
+    hintEl.classList.remove('show');
+    recomputePadSize();
+  }
 
   let pads = []; // [{id, label, audioUrl, order}]
   let currentPadId = null;
@@ -482,7 +511,7 @@
     renderGrid();
   }, (err) => {
     syncDot.className = 'syncdot err';
-    hintEl.textContent = 'No se pudo conectar con la base de datos compartida (' + err.message + '). Revisa tu conexión a internet.';
+    showStatusBanner('No se pudo conectar con la base de datos compartida (' + err.message + '). Revisa tu conexión a internet.', true);
   });
 
   async function seedInitialPads(){
@@ -664,12 +693,12 @@
     const widthBasedSize = (contentWidth - colGap * (cols - 1)) / cols;
 
     // Espacio vertical real disponible: lo que sobra de pantalla después de
-    // la barra superior, el padding de la rejilla, y el texto de versión +
-    // el texto de ayuda de abajo.
+    // la barra superior, el padding de la rejilla, y el aviso de abajo — que
+    // normalmente está oculto (0px) y solo ocupa espacio cuando hay un
+    // mensaje real que mostrar (ver showStatusBanner/hideStatusBanner).
     const topbarEl = document.getElementById('topbar');
-    const versionEl = document.getElementById('versionTag');
     const topbarHeight = topbarEl ? topbarEl.getBoundingClientRect().height : 0;
-    const belowGridHeight = (versionEl ? versionEl.offsetHeight : 0) + (hintEl ? hintEl.offsetHeight : 0);
+    const belowGridHeight = hintEl ? hintEl.offsetHeight : 0;
     const availableHeight = window.innerHeight - topbarHeight - padTop - padBottom - belowGridHeight;
     const heightBasedSize = (availableHeight - rowGap * (rows - 1)) / rows;
 
@@ -766,8 +795,7 @@
       markPadPlaying(getPadElement(pad.id), true);
       updateGlobalStopBtn();
       setPadStatus(pad.id, 'ok');
-      hintEl.textContent = 'Toca un botón vacío para asignarle un sonido. Mantén presionado un botón lleno para editarlo.';
-      hintEl.style.color = '';
+      hideStatusBanner();
     }).catch((err) => {
       // Si el navegador bloqueó el audio (típico al volver de otra app o
       // de segundo plano en iOS), no es un problema del sonido en sí:
@@ -778,12 +806,10 @@
         startBtn.disabled = false;
         startBtn.textContent = '▶\nProbar sonido';
         startOverlay.classList.remove('hidden');
-        hintEl.textContent = 'El navegador pausó el audio (esto pasa al volver de otra app). Toca "Probar sonido" para reactivarlo.';
-        hintEl.style.color = 'var(--danger)';
+        showStatusBanner('El navegador pausó el audio (esto pasa al volver de otra app). Toca "Probar sonido" para reactivarlo.', true);
       } else {
         setPadStatus(pad.id, 'error');
-        hintEl.textContent = 'No se pudo reproducir "' + (pad.label || 'este sonido') + '": ' + err.message;
-        hintEl.style.color = 'var(--danger)';
+        showStatusBanner('No se pudo reproducir "' + (pad.label || 'este sonido') + '": ' + err.message, true);
       }
     });
     if(navigator.vibrate) navigator.vibrate(15);
@@ -1007,6 +1033,15 @@
     }
   });
 
+  // ---- Instrucciones (antes vivían siempre visibles abajo del tablero) ----
+  const infoOverlay = document.getElementById('infoOverlay');
+  document.getElementById('infoBtn').addEventListener('click', () => {
+    infoOverlay.classList.add('open');
+  });
+  document.getElementById('infoCloseBtn').addEventListener('click', () => {
+    infoOverlay.classList.remove('open');
+  });
+
   // ---- Modo eliminar (borrado rápido desde la rejilla) ----
   const deleteModeBtn = document.getElementById('deleteModeBtn');
 
@@ -1037,8 +1072,7 @@
 
   async function deletePadFromGrid(pad){
     if(isWriteInProgress){
-      hintEl.textContent = 'Espera a que termine la operación anterior…';
-      hintEl.style.color = 'var(--text-dim)';
+      showStatusBanner('Espera a que termine la operación anterior…', false);
       return;
     }
     if(!window.confirm('Esto eliminará este botón del tablero. El sonido quedará guardado en la Biblioteca para poder usarlo después. ¿Continuar?')) return;
@@ -1066,8 +1100,7 @@
 
       await padsCollection.doc(pad.id).delete();
     }catch(err){
-      hintEl.textContent = 'No se pudo eliminar: ' + err.message;
-      hintEl.style.color = 'var(--danger)';
+      showStatusBanner('No se pudo eliminar: ' + err.message, true);
     }finally{
       isWriteInProgress = false;
     }
@@ -1102,7 +1135,7 @@
   });
 
   document.getElementById('addPadBtn').addEventListener('click', async () => {
-    if(isWriteInProgress){ hintEl.textContent = 'Espera a que termine la operación anterior…'; hintEl.style.color = 'var(--text-dim)'; return; }
+    if(isWriteInProgress){ showStatusBanner('Espera a que termine la operación anterior…', false); return; }
     isWriteInProgress = true;
     try{
       const ok = await requireEditAccess();
@@ -1110,7 +1143,7 @@
       const maxOrder = pads.reduce((m,p) => Math.max(m, p.order || 0), -1);
       await padsCollection.add({ label:'', audioUrl:null, order: maxOrder + 1, editPin: EDIT_PIN });
     }catch(err){
-      hintEl.textContent = 'No se pudo agregar el botón: ' + err.message;
+      showStatusBanner('No se pudo agregar el botón: ' + err.message, true);
     }finally{
       isWriteInProgress = false;
     }
