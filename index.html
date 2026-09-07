@@ -69,10 +69,18 @@
     flex-shrink: 0;
   }
   .iconbtn:active{ background: var(--slot-border); }
+  @keyframes stopPulse{
+    0%, 100%{ transform: scale(1); box-shadow: 0 0 0 0 var(--danger); }
+    50%{ transform: scale(0.84); box-shadow: 0 0 8px 2px var(--danger); }
+  }
   #globalStopBtn{
     background: var(--danger);
     border-color: var(--danger);
     border-radius: 0;
+    animation: stopPulse 1s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce){
+    #globalStopBtn{ animation: none; }
   }
   #deleteModeBtn.active{
     background: var(--danger);
@@ -354,7 +362,7 @@
 <div id="startOverlay">
   <button id="startBtn" disabled>Cargando…</button>
   <div id="startError"></div>
-  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v32</div>
+  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v33</div>
 </div>
 
 <div class="topbar" id="topbar">
@@ -462,7 +470,7 @@
       <p><b>Clave de edición:</b> la primera vez que agregues, edites, borres o muevas un botón en una sesión, se pedirá una clave de 4 dígitos; después no se vuelve a pedir mientras no cierres la pestaña.</p>
       <p>Un mismo sonido no puede estar en dos botones a la vez: si subes un archivo que ya está en otro botón, se te preguntará si quieres moverlo aquí.</p>
     </div>
-    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v32</div>
+    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v33</div>
     <div class="footerrow">
       <button class="close" id="infoCloseBtn">Cerrar</button>
     </div>
