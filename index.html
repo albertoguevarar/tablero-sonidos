@@ -362,7 +362,7 @@
 <div id="startOverlay">
   <button id="startBtn" disabled>Cargando…</button>
   <div id="startError"></div>
-  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v34</div>
+  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v35</div>
 </div>
 
 <div class="topbar" id="topbar">
@@ -470,7 +470,7 @@
       <p><b>Clave de edición:</b> la primera vez que agregues, edites, borres o muevas un botón en una sesión, se pedirá una clave de 4 dígitos; después no se vuelve a pedir mientras no cierres la pestaña.</p>
       <p>Un mismo sonido no puede estar en dos botones a la vez: si subes un archivo que ya está en otro botón, se te preguntará si quieres moverlo aquí.</p>
     </div>
-    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v34</div>
+    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v35</div>
     <div class="footerrow">
       <button class="close" id="infoCloseBtn">Cerrar</button>
     </div>
@@ -728,19 +728,16 @@
     recomputePadSize();
   }
 
-  // ---- Tamaño dinámico de botones: calcula el tamaño exacto para que quepan
-  // filas completas en la pantalla, sin dejar la última fila cortada a la
-  // mitad. Se ajusta solo a cada teléfono/tablet y a cada cantidad de
-  // botones (nunca se hacen más chicos que MIN_PAD_SIZE; si con ese mínimo
-  // ya no caben todas las filas, esas de más simplemente quedan abajo del
-  // scroll, en vez de reducir los botones a un tamaño poco usable).
-  const MIN_PAD_SIZE = 64;
-
+  // ---- Tamaño de botón: se calcula UNA sola vez según el ancho de pantalla
+  // y la cantidad de columnas (▦), para que las columnas llenen bien el
+  // ancho disponible. Es un tamaño FIJO — no se encoge según cuántas filas
+  // haya. Si hay más botones de los que caben en la pantalla, las filas de
+  // más simplemente quedan abajo y se ve con scroll normal de la página
+  // (antes se encogían los botones para evitar el scroll; se cambió a
+  // petición de Alberto porque con muchos botones se veían demasiado
+  // chicos — el costo aceptado es que en pantallas muy bajas la última
+  // fila visible puede llegar a verse cortada a la mitad).
   function recomputePadSize(){
-    // El tamaño se calcula solo con los botones reales — el fantasma de ＋
-    // al final NUNCA cuenta para este cálculo, para que nunca encoja los
-    // botones reales ni deje espacio vacío a los lados; si no cabe en la
-    // última fila, simplemente queda debajo del scroll.
     if(!pads.length) return;
     const grid = document.getElementById('grid');
     const gridStyle = getComputedStyle(grid);
@@ -749,34 +746,17 @@
     // el selector ▦ como la regla especial de orientación horizontal).
     const trackList = gridStyle.gridTemplateColumns.trim().split(/\s+/).filter(Boolean);
     const cols = trackList.length || 3;
-    const rows = Math.ceil(pads.length / cols);
 
-    const rowGap = parseFloat(gridStyle.rowGap) || 10;
     const colGap = parseFloat(gridStyle.columnGap) || 10;
     const padLeft = parseFloat(gridStyle.paddingLeft) || 0;
     const padRight = parseFloat(gridStyle.paddingRight) || 0;
-    const padTop = parseFloat(gridStyle.paddingTop) || 0;
-    const padBottom = parseFloat(gridStyle.paddingBottom) || 0;
     const maxWidthPx = parseFloat(gridStyle.maxWidth) || 620;
 
-    // Tamaño máximo que cabe a lo ancho (como antes: llenando las columnas).
+    // Tamaño que llena el ancho disponible con la cantidad de columnas actual.
     const containerWidth = Math.min(window.innerWidth, maxWidthPx);
     const contentWidth = containerWidth - padLeft - padRight;
-    const widthBasedSize = (contentWidth - colGap * (cols - 1)) / cols;
+    const size = (contentWidth - colGap * (cols - 1)) / cols;
 
-    // Espacio vertical real disponible: lo que sobra de pantalla después de
-    // la barra superior, el padding de la rejilla, y el aviso de abajo — que
-    // normalmente está oculto (0px) y solo ocupa espacio cuando hay un
-    // mensaje real que mostrar (ver showStatusBanner/hideStatusBanner).
-    const topbarEl = document.getElementById('topbar');
-    const topbarHeight = topbarEl ? topbarEl.getBoundingClientRect().height : 0;
-    const belowGridHeight = hintEl ? hintEl.offsetHeight : 0;
-    const availableHeight = window.innerHeight - topbarHeight - padTop - padBottom - belowGridHeight;
-    const heightBasedSize = (availableHeight - rowGap * (rows - 1)) / rows;
-
-    // Encoge los botones lo justo para que quepan filas completas, pero
-    // nunca más allá del mínimo usable ni más grande que el ancho disponible.
-    const size = Math.min(widthBasedSize, Math.max(heightBasedSize, MIN_PAD_SIZE));
     if(isFinite(size) && size > 0){
       grid.style.setProperty('--pad-size', size + 'px');
     }
