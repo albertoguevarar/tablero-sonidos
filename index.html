@@ -362,7 +362,7 @@
 <div id="startOverlay">
   <button id="startBtn" disabled>Cargando…</button>
   <div id="startError"></div>
-  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v35</div>
+  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v36</div>
 </div>
 
 <div class="topbar" id="topbar">
@@ -470,7 +470,7 @@
       <p><b>Clave de edición:</b> la primera vez que agregues, edites, borres o muevas un botón en una sesión, se pedirá una clave de 4 dígitos; después no se vuelve a pedir mientras no cierres la pestaña.</p>
       <p>Un mismo sonido no puede estar en dos botones a la vez: si subes un archivo que ya está en otro botón, se te preguntará si quieres moverlo aquí.</p>
     </div>
-    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v35</div>
+    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v36</div>
     <div class="footerrow">
       <button class="close" id="infoCloseBtn">Cerrar</button>
     </div>
@@ -728,15 +728,18 @@
     recomputePadSize();
   }
 
-  // ---- Tamaño de botón: se calcula UNA sola vez según el ancho de pantalla
-  // y la cantidad de columnas (▦), para que las columnas llenen bien el
-  // ancho disponible. Es un tamaño FIJO — no se encoge según cuántas filas
-  // haya. Si hay más botones de los que caben en la pantalla, las filas de
-  // más simplemente quedan abajo y se ve con scroll normal de la página
+  // ---- Tamaño de botón: se calcula según el ancho de pantalla y la
+  // cantidad de columnas (▦), para que las columnas llenen bien el ancho
+  // disponible. Es un tamaño FIJO — no se encoge según cuántas filas haya
   // (antes se encogían los botones para evitar el scroll; se cambió a
-  // petición de Alberto porque con muchos botones se veían demasiado
-  // chicos — el costo aceptado es que en pantallas muy bajas la última
-  // fila visible puede llegar a verse cortada a la mitad).
+  // petición de Alberto porque con muchos botones se veían demasiado chicos).
+  //
+  // Además, la rejilla SOLO muestra filas completas antes de necesitar
+  // scroll: en vez de dejar asomado un pedacito de la fila siguiente, se
+  // recorta justo en el borde de la última fila que cabe entera, y esa
+  // fila (y las de más abajo) quedan disponibles haciendo scroll dentro
+  // de la rejilla (la barra superior con los botones de control se queda
+  // siempre visible, no se va con el scroll).
   function recomputePadSize(){
     if(!pads.length) return;
     const grid = document.getElementById('grid');
@@ -747,18 +750,41 @@
     const trackList = gridStyle.gridTemplateColumns.trim().split(/\s+/).filter(Boolean);
     const cols = trackList.length || 3;
 
+    const rowGap = parseFloat(gridStyle.rowGap) || 10;
     const colGap = parseFloat(gridStyle.columnGap) || 10;
     const padLeft = parseFloat(gridStyle.paddingLeft) || 0;
     const padRight = parseFloat(gridStyle.paddingRight) || 0;
+    const padTop = parseFloat(gridStyle.paddingTop) || 0;
+    const padBottom = parseFloat(gridStyle.paddingBottom) || 0;
     const maxWidthPx = parseFloat(gridStyle.maxWidth) || 620;
 
     // Tamaño que llena el ancho disponible con la cantidad de columnas actual.
     const containerWidth = Math.min(window.innerWidth, maxWidthPx);
     const contentWidth = containerWidth - padLeft - padRight;
     const size = (contentWidth - colGap * (cols - 1)) / cols;
+    if(!(isFinite(size) && size > 0)) return;
+    grid.style.setProperty('--pad-size', size + 'px');
 
-    if(isFinite(size) && size > 0){
-      grid.style.setProperty('--pad-size', size + 'px');
+    // Cuántas filas completas caben en el espacio vertical disponible
+    // (debajo de la barra superior y de la franja de avisos, si está
+    // visible). Recortamos la rejilla justo ahí en vez de dejarla crecer
+    // libremente, para que nunca se vea una fila a medias.
+    const topbarEl = document.getElementById('topbar');
+    const topbarHeight = topbarEl ? topbarEl.getBoundingClientRect().height : 0;
+    const belowGridHeight = hintEl ? hintEl.offsetHeight : 0;
+    const availableHeight = window.innerHeight - topbarHeight - belowGridHeight;
+    const rows = Math.ceil(pads.length / cols);
+    const rowsThatFit = Math.max(1, Math.floor((availableHeight - padTop - padBottom + rowGap) / (size + rowGap)));
+
+    if(rowsThatFit >= rows){
+      // Todas las filas caben enteras: no hace falta recortar ni hacer scroll.
+      grid.style.maxHeight = 'none';
+      grid.style.overflowY = 'visible';
+    } else {
+      const clampedHeight = rowsThatFit * size + (rowsThatFit - 1) * rowGap + padTop + padBottom;
+      grid.style.maxHeight = clampedHeight + 'px';
+      grid.style.overflowY = 'auto';
+      grid.style.webkitOverflowScrolling = 'touch';
     }
   }
 
