@@ -362,7 +362,7 @@
 <div id="startOverlay">
   <button id="startBtn" disabled>Cargando…</button>
   <div id="startError"></div>
-  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v37</div>
+  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v38</div>
 </div>
 
 <div class="topbar" id="topbar">
@@ -470,7 +470,7 @@
       <p><b>Clave de edición:</b> la primera vez que agregues, edites, borres o muevas un botón en una sesión, se pedirá una clave de 4 dígitos; después no se vuelve a pedir mientras no cierres la pestaña.</p>
       <p>Un mismo sonido no puede estar en dos botones a la vez: si subes un archivo que ya está en otro botón, se te preguntará si quieres moverlo aquí.</p>
     </div>
-    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v37</div>
+    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v38</div>
     <div class="footerrow">
       <button class="close" id="infoCloseBtn">Cerrar</button>
     </div>
@@ -562,6 +562,11 @@
 
   const padStatus = {}; // padId -> 'checking' | 'ok' | 'error'
   let pendingCheckCount = 0;
+  // Verificación de sonidos por lotes (no uno por uno): revisa varios al
+  // mismo tiempo para que, para cuando el usuario pase la pantalla de
+  // "Probar sonido", la mayoría (o todos) los botones ya estén en verde.
+  const CHECK_BATCH_SIZE = 4;   // cuántos sonidos se revisan a la vez
+  const CHECK_BATCH_DELAY = 120; // ms entre un lote y el siguiente
   const checkedUrls = {}; // padId -> última audioUrl ya revisada
   let currentlyPlayingPadId = null;
   let deleteMode = false; // modo de borrado rápido desde la rejilla
@@ -704,7 +709,8 @@
 
       if(pad.audioUrl && checkedUrls[pad.id] !== pad.audioUrl){
         checkedUrls[pad.id] = pad.audioUrl;
-        const delay = pendingCheckCount * 250; // escalonado: uno cada 250ms
+        const batchIndex = Math.floor(pendingCheckCount / CHECK_BATCH_SIZE);
+        const delay = batchIndex * CHECK_BATCH_DELAY;
         pendingCheckCount++;
         setTimeout(() => checkPadAudio(pad), delay);
       }
