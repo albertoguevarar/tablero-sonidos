@@ -172,8 +172,17 @@
   }
   /* Solo en verde el texto va en amarillo mostaza; los demás estados
      (naranja, gris) y mientras suena (rojo) se quedan en blanco como ya
-     estaban — por eso se excluye explícitamente .playing aquí. */
-  .pad.status-ok:not(.playing) .padLabel{ color: #e8c547; }
+     estaban — por eso se excluye explícitamente .playing aquí. El contorno
+     también cambia a blanco aquí (en vez del contorno oscuro de siempre),
+     a modo de prueba, para ver si contrasta mejor contra el amarillo. */
+  .pad.status-ok:not(.playing) .padLabel{
+    color: #e8c547;
+    text-shadow:
+      -1px -1px 0 rgba(255,255,255,0.9), 1px -1px 0 rgba(255,255,255,0.9),
+      -1px  1px 0 rgba(255,255,255,0.9), 1px  1px 0 rgba(255,255,255,0.9),
+      0 3px 3px rgba(0,0,0,0.55),
+      0 5px 10px rgba(0,0,0,0.45);
+  }
   /* Problema al cargar (naranja) — también usado por "Probar sonido" en reposo */
   .pad.status-error .ball, #startBtn.ready .ball{
     background:
@@ -417,7 +426,7 @@
     </span>
   </button>
   <div id="startError"></div>
-  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v42</div>
+  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v43</div>
 </div>
 
 <div class="topbar" id="topbar">
@@ -525,7 +534,7 @@
       <p><b>Clave de edición:</b> la primera vez que agregues, edites, borres o muevas un botón en una sesión, se pedirá una clave de 4 dígitos; después no se vuelve a pedir mientras no cierres la pestaña.</p>
       <p>Un mismo sonido no puede estar en dos botones a la vez: si subes un archivo que ya está en otro botón, se te preguntará si quieres moverlo aquí.</p>
     </div>
-    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v42</div>
+    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v43</div>
     <div class="footerrow">
       <button class="close" id="infoCloseBtn">Cerrar</button>
     </div>
@@ -916,9 +925,21 @@
       hideStatusBanner();
     }).catch((err) => {
       // Si el navegador bloqueó el audio (típico al volver de otra app o
-      // de segundo plano en iOS), no es un problema del sonido en sí:
-      // reactivamos la pantalla de "Probar sonido" para restablecer el permiso.
-      if(err && (err.name === 'NotAllowedError' || err.name === 'NotSupportedError')){
+      // de segundo plano en iOS/Android), no es un problema del sonido en
+      // sí: reactivamos la pantalla de "Probar sonido" para restablecer el
+      // permiso. El nombre exacto del error varía según el navegador
+      // (NotAllowedError, NotSupportedError, AbortError...), así que además
+      // de esos nombres conocidos, tratamos igual cualquier fallo de
+      // reproducción en un botón que YA estaba verificado como "ok": es
+      // mucho más probable que sea el contexto de audio bloqueado por el
+      // sistema que un archivo que de repente se rompió solo.
+      const pareceAudioBloqueado = err && (
+        err.name === 'NotAllowedError' ||
+        err.name === 'NotSupportedError' ||
+        err.name === 'AbortError' ||
+        padStatus[pad.id] === 'ok'
+      );
+      if(pareceAudioBloqueado){
         audioCtxUnlocked = false;
         startError.textContent = '';
         startBtn.disabled = false;
