@@ -97,7 +97,6 @@
     padding-bottom: calc(4px + env(safe-area-inset-bottom));
     max-width: var(--grid-max-width, 620px);
     margin: 0 auto;
-    perspective: 800px;
   }
   .pad{
     aspect-ratio: 1 / 1;
@@ -105,85 +104,147 @@
     position: relative;
     min-width: 0;
     min-height: 0;
+  }
+  #grid[data-cols="4"] .padLabel{ font-size: clamp(11px, 2.7vw, 14px) !important; }
+  #grid[data-cols="5"] .padLabel{ font-size: clamp(9.5px, 2.2vw, 12px) !important; }
+
+  /* ---- Botón tipo "aro cromado + vidrio" (reemplaza el estilo neumórfico
+     cuadrado con giro 3D que se usó de v27 a v38). Ya NO gira: el mismo
+     botón cambia de color/tamaño en su lugar para indicar que está sonando. ---- */
+  .ring{
+    position: absolute; inset: 4%;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 28% 20%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0) 9%),
+      radial-gradient(circle at 78% 32%, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 7%),
+      radial-gradient(circle at 66% 82%, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0) 10%),
+      radial-gradient(circle at 22% 78%, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0) 9%),
+      conic-gradient(from 200deg, #f4f4f4, #9a9a9a 20%, #444 40%, #cfcfcf 55%, #6b6b6b 75%, #e8e8e8 90%, #f4f4f4);
+    box-shadow:
+      0 6px 12px rgba(0,0,0,0.45),
+      inset 0 2px 3px rgba(255,255,255,0.9),
+      inset 0 -3px 5px rgba(0,0,0,0.5);
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+  }
+  .pad:active .ring{ transform: scale(0.95); }
+  .ball{
+    position: absolute; inset: 7%;
+    border-radius: 50%;
     overflow: hidden;
+    display:flex; align-items:center; justify-content:center;
+    text-align:center; padding: 8%;
+    font-weight: 600; color: var(--text); word-break: break-word;
+    background:
+      radial-gradient(circle at 32% 22%, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.08) 8%, rgba(255,255,255,0) 16%),
+      radial-gradient(circle at 42% 32%, #6b6658 0%, #3a352b 55%, #1c1912 100%);
+    box-shadow: inset 0 6px 12px rgba(0,0,0,0.4), inset 0 -6px 10px rgba(0,0,0,0.3);
+    transition: background 0.15s ease, box-shadow 0.15s ease;
   }
-  #grid[data-cols="4"] .padFace{ font-size: clamp(11px, 2.7vw, 14px) !important; }
-  #grid[data-cols="5"] .padFace{ font-size: clamp(9.5px, 2.2vw, 12px) !important; }
-  .padInner{
-    position: absolute; inset: 0;
-    transform-style: preserve-3d;
-    transition: transform 0.5s cubic-bezier(0.4, 0.1, 0.2, 1);
+  .glare-big{
+    position:absolute; top:10%; left:18%; width:64%; height:32%;
+    border-radius:50% 50% 50% 50% / 65% 65% 35% 35%;
+    background: linear-gradient(to bottom, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.3) 45%, rgba(255,255,255,0) 100%);
+    pointer-events:none;
   }
-  .pad.flipped .padInner{ transform: rotateY(180deg); }
-  .pad:active .padInner{ transform: scale(0.95); }
-  .pad.flipped:active .padInner{ transform: rotateY(180deg) scale(0.95); }
-  .padFace{
-    position: absolute; inset: 0;
-    backface-visibility: hidden;
-    border-radius: var(--radius);
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    justify-content:center;
-    text-align:center;
-    padding: 8px;
-    font-weight: 600;
-    font-size: clamp(13px, 3.4vw, 17px);
-    line-height: 1.25;
-    word-break: break-word;
+  /* El texto va SIEMPRE en blanco con un contorno oscuro marcado (como
+     subtítulos), para que se lea igual de bien sobre el brillo del vidrio
+     que sobre las zonas más oscuras de la esfera — un solo color de texto
+     no se distinguía bien contra tanto brillo (v39). */
+  .padLabel{
+    position:absolute; left:50%; top:50%; z-index:1;
+    width:82%;
+    transform: translate(-50%, -50%);
+    font-size: clamp(12px, 3.2vw, 15.5px);
+    line-height: 1.2;
+    color:#fff;
+    text-shadow:
+      -1px -1px 0 rgba(0,0,0,0.9), 1px -1px 0 rgba(0,0,0,0.9),
+      -1px  1px 0 rgba(0,0,0,0.9), 1px  1px 0 rgba(0,0,0,0.9),
+      0 3px 3px rgba(0,0,0,0.75),
+      0 5px 10px rgba(0,0,0,0.65);
+    transition: top 0.15s ease, transform 0.15s ease;
   }
-  .padFront{
+  .stopIcon{
+    position:absolute; left:50%; top:68%; z-index:2;
+    transform: translate(-50%, -50%) scale(0.5);
+    color:#fff; font-size: clamp(16px, 4.4vw, 22px); font-weight:700;
+    opacity:0;
+    transition: opacity 0.15s ease, transform 0.15s ease, top 0.15s ease;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    pointer-events:none;
+  }
+
+  /* Sonido verificado y listo (verde) */
+  .pad.status-ok .ball, #startBtn.success .ball{
+    background:
+      radial-gradient(circle at 32% 22%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.15) 8%, rgba(255,255,255,0) 16%),
+      radial-gradient(circle at 42% 32%, #8cf787 0%, #3fb23f 30%, #14822a 55%, #0a5c1a 78%, #063d12 100%);
+  }
+  /* Problema al cargar (naranja) — también usado por "Probar sonido" en reposo */
+  .pad.status-error .ball, #startBtn.ready .ball{
+    background:
+      radial-gradient(circle at 32% 22%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.15) 8%, rgba(255,255,255,0) 16%),
+      radial-gradient(circle at 42% 32%, #ffe9a8 0%, #ffbb46 30%, #d68f2e 55%, #8f5a10 78%, #5c3908 100%);
+  }
+  /* Verificando (neutro, mientras se revisa en segundo plano) */
+  .pad.status-checking .ball{
+    background:
+      radial-gradient(circle at 32% 22%, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.08) 8%, rgba(255,255,255,0) 16%),
+      radial-gradient(circle at 42% 32%, #8a8474 0%, #524c40 55%, #292620 100%);
+  }
+
+  /* Botón sin sonido asignado: aro apagado y punteado, sin vidrio ni brillo */
+  .pad:not(.status-ok):not(.status-error):not(.status-checking) .ring{
     background: var(--slot-empty);
-    border: 2px solid var(--slot-border);
-    border-style: dashed;
-    color: var(--text-dim);
+    border: 2px dashed var(--slot-border);
     box-shadow: inset 4px 4px 8px #0d0b08, inset -4px -4px 8px #332d22;
   }
-  .pad.status-ok .padFront{
-    background: var(--slot-empty);
-    border: 2px solid var(--ok);
-    border-style: solid;
-    color: var(--text);
-    box-shadow: 6px 6px 12px #0d0b08, -6px -6px 12px #332d22;
+  .pad:not(.status-ok):not(.status-error):not(.status-checking) .ball{
+    background: none; box-shadow: none;
   }
-  .pad.status-error .padFront{
-    background: var(--slot-empty);
-    border: 2px solid var(--accent);
-    border-style: solid;
-    color: var(--accent);
-    box-shadow: 6px 6px 12px #0d0b08, -6px -6px 12px #332d22;
+  .pad:not(.status-ok):not(.status-error):not(.status-checking) .glare-big{ display:none; }
+  .pad:not(.status-ok):not(.status-error):not(.status-checking) .padLabel{
+    color: var(--text-dim); font-weight:300; text-shadow:none;
   }
-  .pad.status-checking .padFront{
-    background: var(--slot-empty);
-    border: 2px solid var(--slot-border);
-    border-style: solid;
-    color: var(--text-dim);
-    box-shadow: 6px 6px 12px #0d0b08, -6px -6px 12px #332d22;
+
+  /* ---- Sonando: ya NO se voltea — se "apachurra" en su lugar, se pone
+     rojo y pulsa hacia adentro (nunca crece más allá del propio círculo,
+     así nunca se encima con el botón vecino aunque estén muy pegados). ---- */
+  .pad.playing .ring{
+    transform: scale(0.93);
+    box-shadow:
+      0 2px 4px rgba(0,0,0,0.5),
+      inset 0 3px 6px rgba(0,0,0,0.55),
+      inset 0 -1px 2px rgba(255,255,255,0.35);
+    animation: playingRingBreath 0.9s ease-in-out infinite;
   }
-  .pad.flipped .padFront{ pointer-events: none; }
-  .padBack{
-    background: linear-gradient(180deg, var(--danger), #3a1712);
-    border: 1.5px solid var(--danger);
-    color: #fff;
-    transform: rotateY(180deg);
+  .pad.playing .ball{
+    background:
+      radial-gradient(circle at 42% 62%, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 14%),
+      radial-gradient(circle at 50% 78%, #ff7a68 0%, #d6432f 35%, #8f2415 65%, #4a1009 100%);
+    animation: playingBallPulse 0.9s ease-in-out infinite;
   }
-  .pad:not(.flipped) .padBack{ pointer-events: none; }
-  .backLabel{
-    font-size: clamp(11px, 3vw, 14px);
-    font-weight: 700;
-    opacity: 0.9;
-    margin-bottom: 10px;
-    padding: 0 4px;
+  .pad.playing .glare-big{ opacity: 0.3; }
+  .pad.playing .padLabel{ top: 34%; }
+  .pad.playing .stopIcon{ opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  @keyframes playingBallPulse{
+    0%, 100%{
+      filter: brightness(1) saturate(1);
+      box-shadow: inset 0 8px 14px rgba(0,0,0,0.6), inset 0 0 10px 2px rgba(255,110,80,0.25);
+    }
+    50%{
+      filter: brightness(1.55) saturate(1.3);
+      box-shadow: inset 0 8px 14px rgba(0,0,0,0.45), inset 0 0 30px 10px rgba(255,150,110,0.9);
+    }
   }
-  .backStop{
-    width: clamp(34px, 9vw, 46px); height: clamp(34px, 9vw, 46px);
-    border-radius: 50%;
-    background: rgba(0,0,0,0.25);
-    display:flex; align-items:center; justify-content:center;
-    font-size: clamp(14px, 4vw, 18px);
+  @keyframes playingRingBreath{
+    0%, 100%{ transform: scale(0.93); }
+    50%{ transform: scale(0.97); }
   }
-  .padFace .deleteBadge{
-    position:absolute; top:6px; left:6px;
+  @media (prefers-reduced-motion: reduce){ .pad.playing .ring, .pad.playing .ball{ animation:none; } }
+
+  .deleteBadge{
+    position:absolute; top:2%; left:2%; z-index:3;
     width: clamp(24px, 6.5vw, 32px); height: clamp(24px, 6.5vw, 32px);
     border-radius:8px;
     background: var(--danger);
@@ -193,17 +254,17 @@
     font-weight:800;
     pointer-events:none;
   }
-  .padFace .plus{
-    font-size: 26px;
+  .plusIcon{
+    display:block;
+    font-size: clamp(20px, 5.5vw, 30px);
     font-weight: 300;
     color: var(--text-dim);
-    margin-bottom: 4px;
   }
   .pad.ghostAdd{
     display:flex;
     align-items:center;
     justify-content:center;
-    border-radius: var(--radius);
+    border-radius: 50%;
     border: 2px dashed var(--slot-border);
     background: var(--slot-empty);
     box-shadow: inset 4px 4px 8px #0d0b08, inset -4px -4px 8px #332d22;
@@ -215,14 +276,6 @@
   }
   .pad.ghostAdd:active{
     transform: scale(0.95);
-  }
-  .padFace .uploading{
-    position:absolute; inset:0;
-    display:flex; align-items:center; justify-content:center;
-    background: rgba(0,0,0,0.55);
-    border-radius: var(--radius);
-    font-size:12px;
-    color: var(--text);
   }
 
   .overlay{
@@ -324,24 +377,29 @@
     display:flex; flex-direction:column; align-items:center; justify-content:center;
     text-align:center; padding: 24px;
   }
+  /* El botón de "Probar sonido" usa el mismo tipo de botón que los del
+     tablero (aro cromado + esfera de vidrio): .ring/.ball/.glare-big son
+     clases genéricas, así que se reutilizan tal cual dentro de #startBtn. */
   #startBtn{
-    width: 150px; height: 150px; border-radius: 50%;
-    background: radial-gradient(circle at 35% 30%, var(--accent), var(--accent-dim));
-    border: none; color: #1a1408; font-size: 15px; font-weight: 800; letter-spacing: 0.02em;
-    box-shadow: 0 0 0 6px rgba(232,163,61,0.12);
-    transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+    position:relative;
+    width: 150px; height: 150px;
+    border: none; background: transparent; padding: 0;
+    cursor: pointer;
+    transition: transform 0.15s ease;
   }
   #startBtn:active{ transform: scale(0.96); }
-  #startBtn:disabled{
-    background: var(--slot-empty);
-    color: var(--text-dim);
-    box-shadow: none;
-  }
-  #startBtn.success{
-    background: radial-gradient(circle at 35% 30%, #8fd489, var(--ok));
-    box-shadow: 0 0 0 6px rgba(111,174,106,0.25);
-    color: #0d2210;
-    transform: scale(1.06);
+  #startBtn:disabled{ cursor: default; }
+  #startBtn.success{ transform: scale(1.06); }
+  #startBtn .startBtnLabel{
+    position: relative; z-index:1;
+    display:block;
+    color:#fff; font-size: 15px; font-weight: 800; letter-spacing: 0.02em;
+    white-space: pre-line;
+    text-shadow:
+      -1px -1px 0 rgba(0,0,0,0.9), 1px -1px 0 rgba(0,0,0,0.9),
+      -1px  1px 0 rgba(0,0,0,0.9), 1px  1px 0 rgba(0,0,0,0.9),
+      0 3px 3px rgba(0,0,0,0.75),
+      0 5px 10px rgba(0,0,0,0.65);
   }
   #startOverlay.hidden{ display:none; }
   #startError{ margin-top: 18px; font-size: 13px; color: var(--danger); max-width: 280px; min-height: 16px; }
@@ -360,9 +418,14 @@
 <body>
 
 <div id="startOverlay">
-  <button id="startBtn" disabled>Cargando…</button>
+  <button id="startBtn" disabled>
+    <span class="ring">
+      <span class="ball"><span id="startBtnLabel" class="startBtnLabel">Cargando…</span></span>
+      <span class="glare-big"></span>
+    </span>
+  </button>
   <div id="startError"></div>
-  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v38</div>
+  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v41</div>
 </div>
 
 <div class="topbar" id="topbar">
@@ -470,7 +533,7 @@
       <p><b>Clave de edición:</b> la primera vez que agregues, edites, borres o muevas un botón en una sesión, se pedirá una clave de 4 dígitos; después no se vuelve a pedir mientras no cierres la pestaña.</p>
       <p>Un mismo sonido no puede estar en dos botones a la vez: si subes un archivo que ya está en otro botón, se te preguntará si quieres moverlo aquí.</p>
     </div>
-    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v38</div>
+    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v41</div>
     <div class="footerrow">
       <button class="close" id="infoCloseBtn">Cerrar</button>
     </div>
@@ -617,15 +680,15 @@
   }
 
   function padFacesHTML(pad){
-    const frontContent = pad.audioUrl
-      ? escapeHtml(pad.label || 'Sin nombre')
-      : `<div class="plus">＋</div>${escapeHtml(pad.label || 'Vacío')}`;
+    const hasSound = !!pad.audioUrl;
+    const labelHTML = hasSound
+      ? `<span class="padLabel">${escapeHtml(pad.label || 'Sin nombre')}</span>`
+      : `<span class="padLabel"><span class="plusIcon">＋</span>${escapeHtml(pad.label || 'Vacío')}</span>`;
     const deleteBadge = deleteMode ? `<div class="deleteBadge">✕</div>` : '';
-    const backContent = `<div class="backLabel">${escapeHtml(pad.label || 'Sin nombre')}</div><div class="backStop">■</div>`;
-    return `<div class="padInner">`
-      + `<div class="padFace padFront">${frontContent}${deleteBadge}</div>`
-      + `<div class="padFace padBack">${backContent}</div>`
-      + `</div>`;
+    return `<div class="ring">`
+      + `<div class="ball">${labelHTML}<span class="stopIcon">■</span></div>`
+      + `<div class="glare-big"></div>`
+      + `</div>${deleteBadge}`;
   }
 
   function renderGrid(){
@@ -639,7 +702,7 @@
         const st = padStatus[pad.id];
         statusClass = st === 'ok' ? ' status-ok' : st === 'error' ? ' status-error' : ' status-checking';
       }
-      el.className = 'pad' + statusClass + (pad.id === currentlyPlayingPadId ? ' flipped' : '');
+      el.className = 'pad' + statusClass + (pad.id === currentlyPlayingPadId ? ' playing' : '');
       el.innerHTML = padFacesHTML(pad);
 
       let pressTimer = null;
@@ -819,7 +882,7 @@
 
   function markPadPlaying(el, isPlaying){
     if(!el) return;
-    el.classList.toggle('flipped', isPlaying);
+    el.classList.toggle('playing', isPlaying);
   }
 
   function getPadElement(padId){
@@ -867,7 +930,9 @@
         audioCtxUnlocked = false;
         startError.textContent = '';
         startBtn.disabled = false;
-        startBtn.textContent = '▶\nProbar sonido';
+        startBtn.classList.remove('success');
+        startBtn.classList.add('ready');
+        startBtnLabel.textContent = '▶\nProbar sonido';
         startOverlay.classList.remove('hidden');
         showStatusBanner('El navegador pausó el audio (esto pasa al volver de otra app). Toca "Probar sonido" para reactivarlo.', true);
       } else {
@@ -1066,9 +1131,9 @@
     deleteBtn.disabled = true;
     const padIdAtClick = currentPadId;
 
-    // Si este botón se había quedado "reproduciendo" (volteado) sin
+    // Si este botón se había quedado "reproduciendo" (rojo, apachurrado) sin
     // detenerse antes de eliminarlo, lo forzamos a su estado normal ahora
-    // mismo, para que no se quede atorado mostrando la cara roja.
+    // mismo, para que no se quede atorado en rojo.
     if(currentlyPlayingPadId === padIdAtClick){
       stopCurrentlyPlaying();
     }
@@ -1584,6 +1649,7 @@
   // ---- Desbloqueo de audio con botón "Probar sonido" ----
   const startOverlay = document.getElementById('startOverlay');
   const startBtn = document.getElementById('startBtn');
+  const startBtnLabel = document.getElementById('startBtnLabel');
   const startError = document.getElementById('startError');
 
   // Beep corto real (mismo tipo de reproducción que usan los botones del
@@ -1593,7 +1659,7 @@
 
   startBtn.addEventListener('click', () => {
     startBtn.disabled = true;
-    startBtn.textContent = 'Reproduciendo…';
+    startBtnLabel.textContent = 'Reproduciendo…';
     startError.textContent = '';
 
     player.src = BEEP_DATA_URL;
@@ -1604,8 +1670,9 @@
       const showReadyAndAdvance = () => {
         if(proceeded) return;
         proceeded = true;
+        startBtn.classList.remove('ready');
         startBtn.classList.add('success');
-        startBtn.textContent = '✓\n¡Listo!';
+        startBtnLabel.textContent = '✓\n¡Listo!';
         setTimeout(() => {
           startOverlay.classList.add('hidden');
         }, 500); // le da tiempo a que se escuche el sonido de prueba antes de mostrar el tablero
@@ -1618,7 +1685,9 @@
       setTimeout(showReadyAndAdvance, 500);
     }).catch((err) => {
       startBtn.disabled = false;
-      startBtn.textContent = '▶\nProbar sonido';
+      startBtn.classList.remove('success');
+      startBtn.classList.add('ready');
+      startBtnLabel.textContent = '▶\nProbar sonido';
       startError.textContent = 'No se pudo reproducir sonido (' + (err && err.message ? err.message : 'error desconocido') + '). Revisa el volumen y toca de nuevo.';
     });
   });
@@ -1628,7 +1697,8 @@
   // conectarse — por eso activamos el botón hasta este punto exacto, para
   // que un clic muy rápido justo al abrir la página nunca caiga en el vacío.
   startBtn.disabled = false;
-  startBtn.innerHTML = '▶<br>Probar sonido';
+  startBtn.classList.add('ready');
+  startBtnLabel.textContent = '▶\nProbar sonido';
 </script>
 </body>
 </html>
