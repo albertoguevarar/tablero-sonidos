@@ -170,19 +170,6 @@
       radial-gradient(circle at 32% 22%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.15) 8%, rgba(255,255,255,0) 16%),
       radial-gradient(circle at 42% 32%, #8cf787 0%, #3fb23f 30%, #14822a 55%, #0a5c1a 78%, #063d12 100%);
   }
-  /* Solo en verde el texto va en amarillo mostaza; los demás estados
-     (naranja, gris) y mientras suena (rojo) se quedan en blanco como ya
-     estaban — por eso se excluye explícitamente .playing aquí. El contorno
-     también cambia a blanco aquí (en vez del contorno oscuro de siempre),
-     a modo de prueba, para ver si contrasta mejor contra el amarillo. */
-  .pad.status-ok:not(.playing) .padLabel{
-    color: #e8c547;
-    text-shadow:
-      -1px -1px 0 rgba(255,255,255,0.9), 1px -1px 0 rgba(255,255,255,0.9),
-      -1px  1px 0 rgba(255,255,255,0.9), 1px  1px 0 rgba(255,255,255,0.9),
-      0 3px 3px rgba(0,0,0,0.55),
-      0 5px 10px rgba(0,0,0,0.45);
-  }
   /* Problema al cargar (naranja) — también usado por "Probar sonido" en reposo */
   .pad.status-error .ball, #startBtn.ready .ball{
     background:
@@ -426,7 +413,7 @@
     </span>
   </button>
   <div id="startError"></div>
-  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v43</div>
+  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v44</div>
 </div>
 
 <div class="topbar" id="topbar">
@@ -534,7 +521,7 @@
       <p><b>Clave de edición:</b> la primera vez que agregues, edites, borres o muevas un botón en una sesión, se pedirá una clave de 4 dígitos; después no se vuelve a pedir mientras no cierres la pestaña.</p>
       <p>Un mismo sonido no puede estar en dos botones a la vez: si subes un archivo que ya está en otro botón, se te preguntará si quieres moverlo aquí.</p>
     </div>
-    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v43</div>
+    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v44</div>
     <div class="footerrow">
       <button class="close" id="infoCloseBtn">Cerrar</button>
     </div>
