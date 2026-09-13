@@ -112,7 +112,7 @@
      cuadrado con giro 3D que se usó de v27 a v38). Ya NO gira: el mismo
      botón cambia de color/tamaño en su lugar para indicar que está sonando. ---- */
   .ring{
-    position: absolute; inset: 4%;
+    position: absolute; inset: 1%;
     border-radius: 50%;
     background:
       radial-gradient(circle at 28% 20%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0) 9%),
@@ -128,7 +128,7 @@
   }
   .pad:active .ring{ transform: scale(0.95); }
   .ball{
-    position: absolute; inset: 7%;
+    position: absolute; inset: 4%;
     border-radius: 50%;
     overflow: hidden;
     display:flex; align-items:center; justify-content:center;
@@ -164,22 +164,16 @@
       0 5px 10px rgba(0,0,0,0.65);
     transition: top 0.15s ease, transform 0.15s ease;
   }
-  .stopIcon{
-    position:absolute; left:50%; top:68%; z-index:2;
-    transform: translate(-50%, -50%) scale(0.5);
-    color:#fff; font-size: clamp(16px, 4.4vw, 22px); font-weight:700;
-    opacity:0;
-    transition: opacity 0.15s ease, transform 0.15s ease, top 0.15s ease;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
-    pointer-events:none;
-  }
-
   /* Sonido verificado y listo (verde) */
   .pad.status-ok .ball, #startBtn.success .ball{
     background:
       radial-gradient(circle at 32% 22%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.15) 8%, rgba(255,255,255,0) 16%),
       radial-gradient(circle at 42% 32%, #8cf787 0%, #3fb23f 30%, #14822a 55%, #0a5c1a 78%, #063d12 100%);
   }
+  /* Solo en verde el texto va en amarillo mostaza; los demás estados
+     (naranja, gris) y mientras suena (rojo) se quedan en blanco como ya
+     estaban — por eso se excluye explícitamente .playing aquí. */
+  .pad.status-ok:not(.playing) .padLabel{ color: #e8c547; }
   /* Problema al cargar (naranja) — también usado por "Probar sonido" en reposo */
   .pad.status-error .ball, #startBtn.ready .ball{
     background:
@@ -225,8 +219,6 @@
     animation: playingBallPulse 0.9s ease-in-out infinite;
   }
   .pad.playing .glare-big{ opacity: 0.3; }
-  .pad.playing .padLabel{ top: 34%; }
-  .pad.playing .stopIcon{ opacity: 1; transform: translate(-50%, -50%) scale(1); }
   @keyframes playingBallPulse{
     0%, 100%{
       filter: brightness(1) saturate(1);
@@ -425,7 +417,7 @@
     </span>
   </button>
   <div id="startError"></div>
-  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v41</div>
+  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v42</div>
 </div>
 
 <div class="topbar" id="topbar">
@@ -533,7 +525,7 @@
       <p><b>Clave de edición:</b> la primera vez que agregues, edites, borres o muevas un botón en una sesión, se pedirá una clave de 4 dígitos; después no se vuelve a pedir mientras no cierres la pestaña.</p>
       <p>Un mismo sonido no puede estar en dos botones a la vez: si subes un archivo que ya está en otro botón, se te preguntará si quieres moverlo aquí.</p>
     </div>
-    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v41</div>
+    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v42</div>
     <div class="footerrow">
       <button class="close" id="infoCloseBtn">Cerrar</button>
     </div>
@@ -686,7 +678,7 @@
       : `<span class="padLabel"><span class="plusIcon">＋</span>${escapeHtml(pad.label || 'Vacío')}</span>`;
     const deleteBadge = deleteMode ? `<div class="deleteBadge">✕</div>` : '';
     return `<div class="ring">`
-      + `<div class="ball">${labelHTML}<span class="stopIcon">■</span></div>`
+      + `<div class="ball">${labelHTML}</div>`
       + `<div class="glare-big"></div>`
       + `</div>${deleteBadge}`;
   }
@@ -1182,6 +1174,10 @@
   });
   document.getElementById('infoCloseBtn').addEventListener('click', () => {
     infoOverlay.classList.remove('open');
+  });
+  // Clic afuera de la hoja de instrucciones (sobre el fondo oscuro) también cierra.
+  infoOverlay.addEventListener('click', (e) => {
+    if(e.target === infoOverlay) infoOverlay.classList.remove('open');
   });
 
   // ---- Modo eliminar (borrado rápido desde la rejilla) ----
