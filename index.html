@@ -36,6 +36,12 @@
     border-bottom: 1px solid var(--slot-border);
     flex-wrap: nowrap;
     gap: 8px;
+    /* Fija: se queda siempre visible arriba al hacer scroll en la rejilla,
+       en vez de perderse de vista (pedido explícito de Alberto). */
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bg);
   }
   .topbar h1{
     font-size: 15px;
@@ -414,7 +420,7 @@
     </span>
   </button>
   <div id="startError"></div>
-  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v46</div>
+  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v47</div>
 </div>
 
 <div class="topbar" id="topbar">
@@ -522,7 +528,7 @@
       <p><b>Clave de edición:</b> la primera vez que agregues, edites, borres o muevas un botón en una sesión, se pedirá una clave de 4 dígitos; después no se vuelve a pedir mientras no cierres la pestaña.</p>
       <p>Un mismo sonido no puede estar en dos botones a la vez: si subes un archivo que ya está en otro botón, se te preguntará si quieres moverlo aquí.</p>
     </div>
-    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v46</div>
+    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v47</div>
     <div class="footerrow">
       <button class="close" id="infoCloseBtn">Cerrar</button>
     </div>
@@ -672,13 +678,15 @@
   // arriba, mitad abajo) en vez de dejar que el navegador lo corte donde
   // le quede — así se aprovecha mejor el espacio circular del botón y el
   // texto puede verse más grande. Ej: "Monster Block" -> "Monster" / "Block";
-  // "eo, eo, eo, eo" -> "eo, eo," / "eo, eo". Los nombres de una sola
-  // palabra se quedan en una sola línea, igual que antes.
+  // "eo, eo, eo, eo" -> "eo, eo," / "eo, eo". Cuando el número de palabras
+  // es impar, la palabra extra va en la línea de ABAJO (se redondea hacia
+  // abajo), no arriba: "Happy Clap 2" -> "Happy" / "Clap 2" (no "Happy Clap" / "2").
+  // Los nombres de una sola palabra se quedan en una sola línea, igual que antes.
   function splitPadLabelHTML(label, fallback){
     const text = (label && label.trim()) ? label.trim() : fallback;
     const words = text.split(/\s+/).filter(Boolean);
     if(words.length < 2) return escapeHtml(text);
-    const mid = Math.ceil(words.length / 2);
+    const mid = Math.floor(words.length / 2);
     const line1 = words.slice(0, mid).join(' ');
     const line2 = words.slice(mid).join(' ');
     return escapeHtml(line1) + '<br>' + escapeHtml(line2);
