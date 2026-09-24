@@ -75,6 +75,27 @@
     flex-shrink: 0;
   }
   .iconbtn:active{ background: var(--slot-border); }
+  /* Iconos "desnudos" (sin fondo ni borde cuadrado): la rejilla y la i de
+     información se dibujan solas, ocupando todo el espacio del botón. */
+  .iconbtn.bare{
+    background: transparent;
+    border: none;
+  }
+  #deleteModeBtn, #addPadBtn{ font-size: 24px; }
+  #gridSizeBtn{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 4px;
+    padding: 6px;
+  }
+  #gridSizeBtn span{
+    display:block;
+    width:100%; height:100%;
+    background: var(--text);
+    border-radius: 3px;
+  }
+  #infoBtn{ font-size: 28px; }
   @keyframes stopPulse{
     0%, 100%{ transform: scale(1); box-shadow: 0 0 0 0 var(--danger); }
     50%{ transform: scale(0.84); box-shadow: 0 0 8px 2px var(--danger); }
@@ -420,7 +441,7 @@
     </span>
   </button>
   <div id="startError"></div>
-  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v47</div>
+  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v48</div>
 </div>
 
 <div class="topbar" id="topbar">
@@ -429,8 +450,8 @@
     <button class="iconbtn" id="globalStopBtn" title="Detener sonido" style="display:none;"></button>
     <button class="iconbtn" id="deleteModeBtn" title="Eliminar botones">－</button>
     <button class="iconbtn" id="addPadBtn" title="Agregar botón">＋</button>
-    <button class="iconbtn" id="gridSizeBtn" title="Tamaño de botones">▦</button>
-    <button class="iconbtn" id="infoBtn" title="Cómo usar">ⓘ</button>
+    <button class="iconbtn bare" id="gridSizeBtn" title="Tamaño de botones"><span></span><span></span><span></span><span></span></button>
+    <button class="iconbtn bare" id="infoBtn" title="Cómo usar">ⓘ</button>
   </div>
 </div>
 
@@ -528,7 +549,7 @@
       <p><b>Clave de edición:</b> la primera vez que agregues, edites, borres o muevas un botón en una sesión, se pedirá una clave de 4 dígitos; después no se vuelve a pedir mientras no cierres la pestaña.</p>
       <p>Un mismo sonido no puede estar en dos botones a la vez: si subes un archivo que ya está en otro botón, se te preguntará si quieres moverlo aquí.</p>
     </div>
-    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v47</div>
+    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v48</div>
     <div class="footerrow">
       <button class="close" id="infoCloseBtn">Cerrar</button>
     </div>
