@@ -293,6 +293,21 @@
   .pad.ghostAdd:active{
     transform: scale(0.95);
   }
+  /* Reordenar arrastrando (estilo iPhone): el hueco que deja el botón que
+     se está moviendo, y el botón real "levantado" siguiendo al dedo/mouse. */
+  .pad.dragPlaceholder{
+    border-radius: 50%;
+    border: 2px dashed var(--slot-border);
+    background: transparent;
+    box-shadow: none;
+  }
+  .pad.dragGhost{
+    position: fixed;
+    z-index: 999;
+    pointer-events: none;
+    transform: scale(1.08);
+    filter: drop-shadow(0 10px 18px rgba(0,0,0,0.55));
+  }
 
   .overlay{
     position:fixed; inset:0;
@@ -441,7 +456,7 @@
     </span>
   </button>
   <div id="startError"></div>
-  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v48</div>
+  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v49</div>
 </div>
 
 <div class="topbar" id="topbar">
@@ -543,13 +558,14 @@
       <p><b>Reproducir un sonido:</b> toca cualquier botón que ya tenga sonido. Tócalo de nuevo, o usa el botón ■ de arriba, para detenerlo.</p>
       <p><b>Agregar un sonido:</b> toca un botón vacío, el ícono ＋ de arriba, o el botón ＋ punteado al final de la rejilla, para crear uno nuevo, y elige grabar con el micrófono, subir un archivo, o tomarlo de la Biblioteca.</p>
       <p><b>Editar un botón:</b> mantén presionado un botón con sonido para cambiarle el nombre, el sonido, o intercambiarlo de posición con otro botón.</p>
+      <p><b>Reordenar botones:</b> mantén presionado un botón y, sin soltar, arrástralo a otro lugar de la rejilla — los demás se acomodan solos para abrirle espacio. Si sueltas sin moverlo, se abre el editor como siempre.</p>
       <p><b>Eliminar botones:</b> toca el ícono － para activar el modo eliminar — aparece una "x" en cada botón; toca el que quieras borrar. Se apaga tocando de nuevo el ícono － o tocando cualquier lugar fuera de los botones.</p>
       <p><b>Tamaño de los botones:</b> toca el ícono ▦ para alternar entre 3, 4 o 5 columnas.</p>
       <p><b>Colores:</b> verde significa que el sonido ya se revisó y funciona bien; naranja significa que hubo un problema al cargarlo.</p>
       <p><b>Clave de edición:</b> la primera vez que agregues, edites, borres o muevas un botón en una sesión, se pedirá una clave de 4 dígitos; después no se vuelve a pedir mientras no cierres la pestaña.</p>
       <p>Un mismo sonido no puede estar en dos botones a la vez: si subes un archivo que ya está en otro botón, se te preguntará si quieres moverlo aquí.</p>
     </div>
-    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v48</div>
+    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v49</div>
     <div class="footerrow">
       <button class="close" id="infoCloseBtn">Cerrar</button>
     </div>
@@ -617,6 +633,7 @@
   let firstLoad = true;
   padsCollection.orderBy('order').onSnapshot(async (snapshot) => {
     syncDot.className = 'syncdot ok';
+    if(draggingPadId) return; // no pisar un arrastre en curso; se aplica en cuanto termine
     if(snapshot.empty && firstLoad){
       firstLoad = false;
       await seedInitialPads();
@@ -649,6 +666,24 @@
   const checkedUrls = {}; // padId -> última audioUrl ya revisada
   let currentlyPlayingPadId = null;
   let deleteMode = false; // modo de borrado rápido desde la rejilla
+
+  // ---- Reordenar arrastrando, estilo iPhone ----
+  // Mantén presionado un botón (igual que para editarlo) y, ANTES de
+  // soltar, empieza a moverlo: si sueltas sin mover el dedo/mouse, se abre
+  // el editor como siempre; si te mueves mientras sigues presionando, el
+  // botón se "levanta" y lo puedes arrastrar a otra posición — los demás
+  // botones se acomodan solos para abrirle espacio.
+  let draggingPadId = null;      // id del botón que se arrastra ahora mismo
+  let dragPadData = null;        // su objeto {id,label,audioUrl,...} mientras vive fuera de `pads`
+  let dragStartIndex = -1;       // posición donde estaba antes de empezar a moverlo
+  let dragPlaceholderIndex = -1; // posición actual del "hueco" dentro de `pads`
+  let dragEl = null;             // el botón real, flotando con position:fixed
+  let dragGrabDX = 0, dragGrabDY = 0; // dónde lo agarró el dedo/mouse
+  let suppressNextClick = false; // evita que el "click" fantasma justo después de soltar reproduzca el botón donde cayó
+  document.addEventListener('click', (e) => {
+    if(suppressNextClick){ suppressNextClick = false; e.stopPropagation(); e.preventDefault(); }
+  }, true);
+
   const EDIT_PIN = '9062';
   let sessionPin = null; // se guarda en memoria mientras esta pestaña esté abierta
 
@@ -725,52 +760,245 @@
       + `</div>${deleteBadge}`;
   }
 
+  // ---- Mecánica del arrastre para reordenar (ver comentario arriba, donde
+  // se declaran las variables draggingPadId, dragEl, etc.) ----
+  function onDragDocTouchMove(e){
+    if(!draggingPadId) return;
+    e.preventDefault();
+    const t = e.touches[0];
+    movePadDrag(t.clientX, t.clientY);
+  }
+  function onDragDocTouchEnd(){
+    if(!draggingPadId) return;
+    endPadDrag();
+  }
+  function onDragDocMouseMove(e){
+    if(!draggingPadId) return;
+    movePadDrag(e.clientX, e.clientY);
+  }
+  function onDragDocMouseUp(){
+    if(!draggingPadId) return;
+    endPadDrag();
+  }
+
+  function startPadDrag(pad, el, pointerX, pointerY){
+    if(deleteMode || draggingPadId) return;
+    const idx = pads.findIndex(p => p.id === pad.id);
+    if(idx === -1) return;
+    const rect = el.getBoundingClientRect();
+    dragGrabDX = pointerX - rect.left;
+    dragGrabDY = pointerY - rect.top;
+
+    draggingPadId = pad.id;
+    dragPadData = pads[idx];
+    dragStartIndex = idx;
+    dragPlaceholderIndex = idx;
+    pads[idx] = { __dragPlaceholder: true, id: '__dragPlaceholder__' };
+
+    dragEl = el;
+    document.body.appendChild(dragEl);
+    dragEl.classList.add('dragGhost');
+    dragEl.style.width = rect.width + 'px';
+    dragEl.style.height = rect.height + 'px';
+    dragEl.style.left = rect.left + 'px';
+    dragEl.style.top = rect.top + 'px';
+
+    document.addEventListener('touchmove', onDragDocTouchMove, {passive:false});
+    document.addEventListener('touchend', onDragDocTouchEnd);
+    document.addEventListener('touchcancel', onDragDocTouchEnd);
+    document.addEventListener('mousemove', onDragDocMouseMove);
+    document.addEventListener('mouseup', onDragDocMouseUp);
+
+    renderGrid();
+    movePadDrag(pointerX, pointerY);
+  }
+
+  function movePadDrag(pointerX, pointerY){
+    if(!draggingPadId || !dragEl) return;
+    dragEl.style.left = (pointerX - dragGrabDX) + 'px';
+    dragEl.style.top = (pointerY - dragGrabDY) + 'px';
+
+    // ¿Sobre qué lugar de la rejilla está el botón que arrastramos ahora?
+    // Comparamos contra el centro de cada botón visible (sin contar el
+    // "＋" fantasma, que no se muestra mientras se arrastra).
+    const tiles = Array.from(document.getElementById('grid').children)
+      .filter(c => !c.classList.contains('ghostAdd'));
+    let closestIdx = -1, closestDist = Infinity;
+    tiles.forEach((tile, idx) => {
+      const r = tile.getBoundingClientRect();
+      const cx = r.left + r.width/2, cy = r.top + r.height/2;
+      const dist = Math.hypot(cx - pointerX, cy - pointerY);
+      if(dist < closestDist){ closestDist = dist; closestIdx = idx; }
+    });
+    if(closestIdx !== -1 && closestIdx !== dragPlaceholderIndex){
+      const [placeholder] = pads.splice(dragPlaceholderIndex, 1);
+      pads.splice(closestIdx, 0, placeholder);
+      dragPlaceholderIndex = closestIdx;
+      renderGridAnimated();
+    }
+  }
+
+  async function endPadDrag(){
+    if(!draggingPadId) return;
+
+    document.removeEventListener('touchmove', onDragDocTouchMove);
+    document.removeEventListener('touchend', onDragDocTouchEnd);
+    document.removeEventListener('touchcancel', onDragDocTouchEnd);
+    document.removeEventListener('mousemove', onDragDocMouseMove);
+    document.removeEventListener('mouseup', onDragDocMouseUp);
+
+    const movedPad = dragPadData;
+    const startIndex = dragStartIndex;
+    const finalIndex = dragPlaceholderIndex;
+    pads.splice(finalIndex, 1, movedPad);
+
+    if(dragEl){
+      dragEl.classList.remove('dragGhost');
+      dragEl.style.position = '';
+      dragEl.style.left = '';
+      dragEl.style.top = '';
+      dragEl.style.width = '';
+      dragEl.style.height = '';
+      dragEl.remove(); // se vuelve a crear limpio dentro de renderGrid()
+    }
+
+    draggingPadId = null;
+    dragPadData = null;
+    dragEl = null;
+    dragPlaceholderIndex = -1;
+    dragStartIndex = -1;
+    suppressNextClick = true; // evita que el "click" fantasma justo después de soltar reproduzca el botón donde cayó
+
+    renderGrid();
+
+    if(finalIndex === startIndex) return; // se quedó en el mismo lugar: no hay nada que guardar
+
+    if(isWriteInProgress){ showStatusBanner('Espera a que termine la operación anterior…', false); return; }
+    isWriteInProgress = true;
+    try{
+      const ok = await requireEditAccess();
+      if(!ok){
+        // Canceló la clave: regresamos el botón a su lugar original.
+        const curIdx = pads.findIndex(p => p.id === movedPad.id);
+        if(curIdx !== -1 && curIdx !== startIndex){
+          const [p] = pads.splice(curIdx, 1);
+          pads.splice(startIndex, 0, p);
+          renderGrid();
+        }
+        return;
+      }
+      const batch = db.batch();
+      pads.forEach((p, idx) => {
+        batch.set(padsCollection.doc(p.id), { order: idx, editPin: EDIT_PIN }, { merge: true });
+      });
+      await batch.commit();
+    }catch(err){
+      showStatusBanner('No se pudo guardar el nuevo orden: ' + err.message, true);
+    }finally{
+      isWriteInProgress = false;
+    }
+  }
+
+  // Reconstruye la rejilla pero anima el acomodo de los botones (que no sean
+  // el que se arrastra) desde su posición anterior a la nueva, en vez de que
+  // "salten" de golpe — técnica FLIP: se mide antes, se redibuja, y se anima
+  // la diferencia con un transform que regresa a cero.
+  function renderGridAnimated(){
+    const grid = document.getElementById('grid');
+    const beforeRects = new Map();
+    Array.from(grid.children).forEach(child => {
+      const id = child.dataset && child.dataset.padId;
+      if(id) beforeRects.set(id, child.getBoundingClientRect());
+    });
+
+    renderGrid();
+
+    Array.from(grid.children).forEach(child => {
+      const id = child.dataset && child.dataset.padId;
+      if(!id) return;
+      const before = beforeRects.get(id);
+      if(!before) return;
+      const after = child.getBoundingClientRect();
+      const dx = before.left - after.left;
+      const dy = before.top - after.top;
+      if(dx || dy){
+        child.style.transition = 'none';
+        child.style.transform = `translate(${dx}px, ${dy}px)`;
+        requestAnimationFrame(() => {
+          child.style.transition = 'transform 0.18s ease';
+          child.style.transform = '';
+        });
+      }
+    });
+  }
+
   function renderGrid(){
     const grid = document.getElementById('grid');
     grid.innerHTML = '';
     pendingCheckCount = 0;
     pads.forEach((pad) => {
       const el = document.createElement('div');
+
+      if(pad.__dragPlaceholder){
+        el.className = 'pad dragPlaceholder';
+        grid.appendChild(el);
+        return; // solo reserva el espacio mientras se arrastra: sin contenido ni eventos
+      }
+
       let statusClass = '';
       if(pad.audioUrl){
         const st = padStatus[pad.id];
         statusClass = st === 'ok' ? ' status-ok' : st === 'error' ? ' status-error' : ' status-checking';
       }
       el.className = 'pad' + statusClass + (pad.id === currentlyPlayingPadId ? ' playing' : '');
+      el.dataset.padId = pad.id; // para animar el acomodo (FLIP) al reordenar arrastrando
       el.innerHTML = padFacesHTML(pad);
 
       let pressTimer = null;
-      let longPressed = false;
+      let longPressArmed = false; // ya pasó el tiempo de "mantener presionado"
       let touchMoved = false;
       let touchStartX = 0, touchStartY = 0;
+      let isDraggingThisPad = false;
       let mousePressTimer = null;
-      let mouseLongPressed = false;
+      let mouseLongPressArmed = false;
+      let isDraggingThisPadMouse = false;
 
       el.addEventListener('touchstart', (e) => {
-        longPressed = false;
+        longPressArmed = false;
         touchMoved = false;
+        isDraggingThisPad = false;
         const t = e.touches[0];
         touchStartX = t.clientX;
         touchStartY = t.clientY;
         if(deleteMode) return; // en modo eliminar no hay "mantener presionado"
-        pressTimer = setTimeout(() => { longPressed = true; openSheet(pad.id); }, 420);
+        pressTimer = setTimeout(() => { longPressArmed = true; }, 420);
       }, {passive:true});
 
       el.addEventListener('touchmove', (e) => {
+        if(isDraggingThisPad) return; // ya lo sigue el manejador del documento
         const t = e.touches[0];
         const dx = Math.abs(t.clientX - touchStartX);
         const dy = Math.abs(t.clientY - touchStartY);
-        if(dx > 10 || dy > 10){
-          touchMoved = true;
-          clearTimeout(pressTimer); // si se está arrastrando (scroll), cancela el "mantener presionado"
+        if(!longPressArmed){
+          if(dx > 10 || dy > 10){
+            touchMoved = true;
+            clearTimeout(pressTimer); // fue un scroll, no un "mantener presionado"
+          }
+          return;
         }
+        // Ya se cumplió el tiempo de "mantener presionado": de aquí en
+        // adelante, moverse significa "lo quiero arrastrar" (estilo
+        // iPhone), no un scroll de la página.
+        isDraggingThisPad = true;
+        startPadDrag(pad, el, t.clientX, t.clientY);
       }, {passive:true});
 
       el.addEventListener('touchend', () => {
         clearTimeout(pressTimer);
+        if(isDraggingThisPad) return; // lo termina el manejador del documento
         if(touchMoved) return; // fue un scroll, no un toque real
         if(deleteMode){ deletePadFromGrid(pad); return; }
-        if(longPressed) return;
+        if(longPressArmed){ openSheet(pad.id); return; }
         if(pad.audioUrl){ togglePad(pad); } else { openSheet(pad.id); }
       });
 
@@ -779,8 +1007,16 @@
       el.addEventListener('mousedown', () => {
         if('ontouchstart' in window) return;
         if(deleteMode) return; // en modo eliminar no hay "mantener presionado"
-        mouseLongPressed = false;
-        mousePressTimer = setTimeout(() => { mouseLongPressed = true; openSheet(pad.id); }, 420);
+        mouseLongPressArmed = false;
+        isDraggingThisPadMouse = false;
+        mousePressTimer = setTimeout(() => { mouseLongPressArmed = true; }, 420);
+      });
+
+      el.addEventListener('mousemove', (e) => {
+        if('ontouchstart' in window) return;
+        if(!mouseLongPressArmed || isDraggingThisPadMouse) return;
+        isDraggingThisPadMouse = true;
+        startPadDrag(pad, el, e.clientX, e.clientY);
       });
 
       el.addEventListener('mouseup', () => {
@@ -798,7 +1034,8 @@
           return;
         }
         if('ontouchstart' in window) return;
-        if(mouseLongPressed){ mouseLongPressed = false; return; } // ya se abrió el editor al mantener presionado
+        if(isDraggingThisPadMouse){ isDraggingThisPadMouse = false; return; } // el "click" que sigue al soltar el arrastre no hace nada más
+        if(mouseLongPressArmed){ mouseLongPressArmed = false; openSheet(pad.id); return; } // ya se armó "mantener presionado", sin arrastrar: abre el editor
         if(pad.audioUrl){ togglePad(pad); } else { openSheet(pad.id); }
       });
 
@@ -817,8 +1054,8 @@
     // de la barra superior, para agregar un botón sin tener que subir la vista.
     // Solo se muestra si no hay ya un botón vacío en el tablero (ese botón
     // vacío ya cumple la misma función); así nunca hay dos "＋" a la vez.
-    const hasEmptyPad = pads.some((p) => !p.audioUrl);
-    if(!deleteMode && !hasEmptyPad){
+    const hasEmptyPad = pads.some((p) => !p.__dragPlaceholder && !p.audioUrl);
+    if(!deleteMode && !draggingPadId && !hasEmptyPad){
       const ghost = document.createElement('div');
       ghost.className = 'pad ghostAdd';
       ghost.setAttribute('role', 'button');
