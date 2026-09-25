@@ -109,6 +109,31 @@
   @media (prefers-reduced-motion: reduce){
     #globalStopBtn{ animation: none; }
   }
+  /* v50: la línea de abajo de la barra indica la conexión (reemplaza el
+     punto verde y la palabra "Sonidos"). Normal = todo bien; roja = sin
+     internet o sin conexión con la base de datos. Se usa box-shadow para
+     engrosarla sin mover nada de lugar. */
+  .topbar.conn-err{
+    border-bottom-color: var(--danger);
+    box-shadow: 0 1px 0 0 var(--danger);
+  }
+  .topbar .left{ display:flex; align-items:center; min-width:34px; min-height:34px; }
+  /* v50: botones de Repetir y Velocidad */
+  .modebtn{ position:relative; color: var(--text-dim); }
+  .modebtn svg{ display:block; }
+  .modebtn.on{ background: var(--accent-dim); border-color: var(--accent); color:#fff; }
+  .modebtn .badge{
+    position:absolute; top:-6px; right:-6px;
+    min-width:17px; height:17px; padding:0 4px;
+    border-radius:9px; background: var(--accent); color:#14120f;
+    font: 800 11px/17px -apple-system, system-ui, sans-serif; text-align:center;
+    border:1.5px solid var(--bg);
+    display:none;
+  }
+  .modebtn.on .badge{ display:block; }
+  .modebtn.locked{ animation: lockBlink .5s ease-in-out 3; }
+  @keyframes lockBlink{ 50%{ opacity:.35; } }
+  @media (prefers-reduced-motion: reduce){ .modebtn.locked{ animation:none; opacity:.5; } }
   #deleteModeBtn.active{
     background: var(--danger);
     border-color: var(--danger);
@@ -456,15 +481,18 @@
     </span>
   </button>
   <div id="startError"></div>
-  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v49</div>
+  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v50</div>
 </div>
 
 <div class="topbar" id="topbar">
-  <h1><span class="syncdot" id="syncDot"></span>Sonidos</h1>
-  <div class="actions">
+  <div class="left">
     <button class="iconbtn" id="globalStopBtn" title="Detener sonido" style="display:none;"></button>
+  </div>
+  <div class="actions">
     <button class="iconbtn" id="deleteModeBtn" title="Eliminar botones">－</button>
     <button class="iconbtn" id="addPadBtn" title="Agregar botón">＋</button>
+    <button class="iconbtn modebtn" id="repeatBtn" title="Repetir: no"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11V9a3 3 0 0 1 3-3h12"/><path d="M16 3l3 3-3 3"/><path d="M20 13v2a3 3 0 0 1-3 3H5"/><path d="M8 21l-3-3 3-3"/></svg><span class="badge"></span></button>
+    <button class="iconbtn modebtn" id="speedBtn" title="Velocidad: normal"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M3 5.5v13a1 1 0 0 0 1.5.86L12 15v4.5a1 1 0 0 0 1.5.86l9-6.5a1 1 0 0 0 0-1.72l-9-6.5A1 1 0 0 0 12 5v4.5L4.5 4.64A1 1 0 0 0 3 5.5z"/></svg><span class="badge"></span></button>
     <button class="iconbtn bare" id="gridSizeBtn" title="Tamaño de botones"><span></span><span></span><span></span><span></span></button>
     <button class="iconbtn bare" id="infoBtn" title="Cómo usar">ⓘ</button>
   </div>
@@ -560,12 +588,16 @@
       <p><b>Editar un botón:</b> mantén presionado un botón con sonido para cambiarle el nombre, el sonido, o intercambiarlo de posición con otro botón.</p>
       <p><b>Reordenar botones:</b> mantén presionado un botón y, sin soltar, arrástralo a otro lugar de la rejilla — los demás se acomodan solos para abrirle espacio. Si sueltas sin moverlo, se abre el editor como siempre.</p>
       <p><b>Eliminar botones:</b> toca el ícono － para activar el modo eliminar — aparece una "x" en cada botón; toca el que quieras borrar. Se apaga tocando de nuevo el ícono － o tocando cualquier lugar fuera de los botones.</p>
-      <p><b>Tamaño de los botones:</b> toca el ícono ▦ para alternar entre 3, 4 o 5 columnas.</p>
+      <p><b>Repetir:</b> el ícono de las dos flechas en círculo. Cada toque cambia: no repite → repite 1 vez → 2 veces → 3 veces → no repite. El número en la bolita dice cuántas veces más se va a repetir el sonido después de la primera (con 3 se escucha 4 veces en total). El botón ■ también cancela las repeticiones que falten.</p>
+      <p><b>Velocidad:</b> el ícono ⏩. Cada toque cambia: normal → 1 (1.25×) → 2 (1.5×) → 3 (2×) → normal. La voz no cambia de tono, solo va más rápido. Si algo está sonando, el cambio se aplica al instante.</p>
+      <p>Al regresar a "no repite" o a "normal", el botón parpadea y se queda quieto un momento, para que si tocas varias veces seguidas no te pases. Al recargar la página, los dos regresan a normal.</p>
+      <p><b>Tamaño de los botones:</b> toca el ícono de los cuatro cuadritos para alternar entre 3, 4 o 5 columnas.</p>
+      <p><b>Conexión:</b> si la línea de abajo de la barra superior se pone roja, no hay internet o se perdió la conexión con la base de datos compartida. Los sonidos que ya cargaron pueden seguir sonando, pero los cambios de otros teléfonos no llegarán hasta que se recupere.</p>
       <p><b>Colores:</b> verde significa que el sonido ya se revisó y funciona bien; naranja significa que hubo un problema al cargarlo.</p>
       <p><b>Clave de edición:</b> la primera vez que agregues, edites, borres o muevas un botón en una sesión, se pedirá una clave de 4 dígitos; después no se vuelve a pedir mientras no cierres la pestaña.</p>
       <p>Un mismo sonido no puede estar en dos botones a la vez: si subes un archivo que ya está en otro botón, se te preguntará si quieres moverlo aquí.</p>
     </div>
-    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v49</div>
+    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v50</div>
     <div class="footerrow">
       <button class="close" id="infoCloseBtn">Cerrar</button>
     </div>
@@ -596,7 +628,16 @@
   const padsCollection = db.collection('pads');
   const libraryCollection = db.collection('library'); // sonidos guardados que no están en ningún botón
 
-  const syncDot = document.getElementById('syncDot');
+  // v50: estado de conexión en la línea de abajo de la barra superior.
+  const topbarEl = document.getElementById('topbar');
+  let firestoreError = false;
+  function updateConnLine(){
+    const bad = firestoreError || navigator.onLine === false;
+    topbarEl.classList.toggle('conn-err', bad);
+  }
+  window.addEventListener('online', updateConnLine);
+  window.addEventListener('offline', updateConnLine);
+  updateConnLine();
   const hintEl = document.getElementById('hint');
 
   // El tablero se mantiene limpio: este texto de abajo solo aparece cuando
@@ -627,12 +668,22 @@
   let replaceOldAudioUrl = null; // si el usuario eligió "reemplazar en todos", aquí va la URL vieja a sustituir
   let audioCtxUnlocked = false;
   const player = new Audio();
+  // v50: velocidad sin cambiar el tono de la voz.
+  try{ player.preservesPitch = true; }catch(e){}
+  try{ player.webkitPreservesPitch = true; }catch(e){}
+  try{ player.mozPreservesPitch = true; }catch(e){}
+  // Cambiar el src reinicia la velocidad en algunos navegadores, así que
+  // se vuelve a fijar justo después de cada player.src = ...
+  function setPlayerRate(rate){
+    try{ player.defaultPlaybackRate = rate; }catch(e){}
+    try{ player.playbackRate = rate; }catch(e){}
+  }
   let isPreviewPlaying = false;
 
   // ---- Escucha en tiempo real: cualquier cambio se refleja al instante ----
   let firstLoad = true;
   padsCollection.orderBy('order').onSnapshot(async (snapshot) => {
-    syncDot.className = 'syncdot ok';
+    firestoreError = false; updateConnLine();
     if(draggingPadId) return; // no pisar un arrastre en curso; se aplica en cuanto termine
     if(snapshot.empty && firstLoad){
       firstLoad = false;
@@ -643,7 +694,7 @@
     pads = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     renderGrid();
   }, (err) => {
-    syncDot.className = 'syncdot err';
+    firestoreError = true; updateConnLine();
     showStatusBanner('No se pudo conectar con la base de datos compartida (' + err.message + '). Revisa tu conexión a internet.', true);
   });
 
@@ -1164,6 +1215,54 @@
 
   const globalStopBtn = document.getElementById('globalStopBtn');
 
+  // ---- v50: Repetir y Velocidad (siempre arrancan en normal al cargar) ----
+  const REPEAT_STEPS = [0, 1, 2, 3];          // repeticiones extra después de la primera
+  const SPEED_STEPS  = [1, 1.25, 1.5, 2];     // normal, vel. 1, vel. 2, vel. 3
+  const MODE_LOCK_MS = 1500;                  // pausa al regresar a normal
+  let repeatIdx = 0, speedIdx = 0, repeatsLeft = 0;
+  const repeatBtn = document.getElementById('repeatBtn');
+  const speedBtn  = document.getElementById('speedBtn');
+
+  function renderModeBtn(btn, idx, titleOff, titleOn){
+    btn.classList.toggle('on', idx > 0);
+    btn.querySelector('.badge').textContent = idx > 0 ? String(idx) : '';
+    btn.title = idx > 0 ? titleOn : titleOff;
+  }
+  function renderModeButtons(){
+    renderModeBtn(repeatBtn, repeatIdx, 'Repetir: no',
+      'Repetir: ' + REPEAT_STEPS[repeatIdx] + (REPEAT_STEPS[repeatIdx] === 1 ? ' vez' : ' veces'));
+    renderModeBtn(speedBtn, speedIdx, 'Velocidad: normal',
+      'Velocidad ' + speedIdx + ' (' + SPEED_STEPS[speedIdx] + '×)');
+  }
+  // Al llegar a normal, el botón se "congela" MODE_LOCK_MS y parpadea: los
+  // toques de más durante ese tiempo se ignoran para no brincar al siguiente.
+  function cycleMode(btn, getIdx, setIdx, steps, onChange){
+    if(btn.dataset.locked === '1') return;
+    const next = (getIdx() + 1) % steps.length;
+    setIdx(next);
+    renderModeButtons();
+    onChange(next);
+    if(navigator.vibrate) navigator.vibrate(10);
+    if(next === 0){
+      btn.dataset.locked = '1';
+      btn.classList.remove('locked'); void btn.offsetWidth; btn.classList.add('locked');
+      setTimeout(() => { btn.dataset.locked = ''; btn.classList.remove('locked'); }, MODE_LOCK_MS);
+    }
+  }
+  repeatBtn.addEventListener('click', () => {
+    cycleMode(repeatBtn, () => repeatIdx, v => { repeatIdx = v; }, REPEAT_STEPS, (i) => {
+      // Si algo está sonando, el nuevo número de repeticiones aplica a ese sonido.
+      if(currentlyPlayingPadId) repeatsLeft = REPEAT_STEPS[i];
+    });
+  });
+  speedBtn.addEventListener('click', () => {
+    cycleMode(speedBtn, () => speedIdx, v => { speedIdx = v; }, SPEED_STEPS, (i) => {
+      // Si algo del tablero está sonando, se acelera/desacelera al instante.
+      if(currentlyPlayingPadId) setPlayerRate(SPEED_STEPS[i]);
+    });
+  });
+  renderModeButtons();
+
   function updateGlobalStopBtn(){
     globalStopBtn.style.display = currentlyPlayingPadId ? 'flex' : 'none';
   }
@@ -1172,6 +1271,7 @@
     if(currentlyPlayingPadId){
       markPadPlaying(getPadElement(currentlyPlayingPadId), false);
     }
+    repeatsLeft = 0;
     try{ player.pause(); player.currentTime = 0; }catch(e){}
     currentlyPlayingPadId = null;
     updateGlobalStopBtn();
@@ -1187,8 +1287,10 @@
     }
     stopCurrentlyPlaying();
     player.src = pad.audioUrl;
+    setPlayerRate(SPEED_STEPS[speedIdx]);
     player.play().then(() => {
       currentlyPlayingPadId = pad.id;
+      repeatsLeft = REPEAT_STEPS[repeatIdx];
       markPadPlaying(getPadElement(pad.id), true);
       updateGlobalStopBtn();
       setPadStatus(pad.id, 'ok');
@@ -1227,6 +1329,15 @@
   }
 
   player.addEventListener('ended', () => {
+    // v50: si quedan repeticiones, se vuelve a tocar el mismo sonido sin
+    // quitar el estado "sonando" del botón.
+    if(currentlyPlayingPadId && repeatsLeft > 0){
+      repeatsLeft--;
+      try{ player.currentTime = 0; }catch(e){}
+      setPlayerRate(SPEED_STEPS[speedIdx]);
+      player.play().catch(() => { stopCurrentlyPlaying(); });
+      return;
+    }
     if(currentlyPlayingPadId){
       markPadPlaying(getPadElement(currentlyPlayingPadId), false);
       currentlyPlayingPadId = null;
@@ -1611,6 +1722,7 @@
     }
     if(!url) return;
     player.src = url;
+    setPlayerRate(1);
     player.play().then(() => {
       isPreviewPlaying = true;
       previewBtn.textContent = '■ Detener';
@@ -1662,6 +1774,7 @@
           unlockAudio();
           try{ player.pause(); }catch(e){}
           player.src = entry.audioUrl;
+          setPlayerRate(1);
           player.play().catch(()=>{});
         });
         item.querySelector('.rpick').addEventListener('click', async () => {
@@ -1690,6 +1803,7 @@
           unlockAudio();
           try{ player.pause(); }catch(e){}
           player.src = p.audioUrl;
+          setPlayerRate(1);
           player.play().catch(()=>{});
         });
         item.querySelector('.rpick').addEventListener('click', async () => {
@@ -1950,6 +2064,7 @@
     startError.textContent = '';
 
     player.src = BEEP_DATA_URL;
+    setPlayerRate(1);
     player.play().then(() => {
       audioCtxUnlocked = true;
 
