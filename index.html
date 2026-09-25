@@ -326,6 +326,13 @@
     background: transparent;
     box-shadow: none;
   }
+  /* v51: al cumplirse el tiempo de "mantener presionado" el botón se levanta
+     un poco (ya se puede arrastrar); si no se mueve, el editor se abre solo. */
+  .pad.holdArmed{
+    transform: scale(1.06);
+    filter: drop-shadow(0 8px 14px rgba(0,0,0,0.5));
+    transition: transform .12s ease-out, filter .12s ease-out;
+  }
   .pad.dragGhost{
     position: fixed;
     z-index: 999;
@@ -481,7 +488,7 @@
     </span>
   </button>
   <div id="startError"></div>
-  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v50</div>
+  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v52</div>
 </div>
 
 <div class="topbar" id="topbar">
@@ -585,8 +592,8 @@
     <div class="infoText">
       <p><b>Reproducir un sonido:</b> toca cualquier botón que ya tenga sonido. Tócalo de nuevo, o usa el botón ■ de arriba, para detenerlo.</p>
       <p><b>Agregar un sonido:</b> toca un botón vacío, el ícono ＋ de arriba, o el botón ＋ punteado al final de la rejilla, para crear uno nuevo, y elige grabar con el micrófono, subir un archivo, o tomarlo de la Biblioteca.</p>
-      <p><b>Editar un botón:</b> mantén presionado un botón con sonido para cambiarle el nombre, el sonido, o intercambiarlo de posición con otro botón.</p>
-      <p><b>Reordenar botones:</b> mantén presionado un botón y, sin soltar, arrástralo a otro lugar de la rejilla — los demás se acomodan solos para abrirle espacio. Si sueltas sin moverlo, se abre el editor como siempre.</p>
+      <p><b>Editar un botón:</b> mantén presionado un botón con sonido: primero se "levanta" un poco y, si no lo mueves, el editor se abre solo (no hace falta soltar). Ahí puedes cambiarle el nombre, el sonido, o intercambiarlo de posición con otro botón. Si ese mismo botón está sonando, se detiene al abrir el editor (si suena otro, sigue sonando). Para cancelar rápido: toca fuera del editor, o en PC oprime Esc.</p>
+      <p><b>Reordenar botones:</b> mantén presionado un botón y, sin soltar, arrástralo a otro lugar de la rejilla — los demás se acomodan solos para abrirle espacio. Para arrastrar, empieza a moverlo en cuanto se levante, antes de que se abra el editor.</p>
       <p><b>Eliminar botones:</b> toca el ícono － para activar el modo eliminar — aparece una "x" en cada botón; toca el que quieras borrar. Se apaga tocando de nuevo el ícono － o tocando cualquier lugar fuera de los botones.</p>
       <p><b>Repetir:</b> el ícono de las dos flechas en círculo. Cada toque cambia: no repite → repite 1 vez → 2 veces → 3 veces → no repite. El número en la bolita dice cuántas veces más se va a repetir el sonido después de la primera (con 3 se escucha 4 veces en total). El botón ■ también cancela las repeticiones que falten.</p>
       <p><b>Velocidad:</b> el ícono ⏩. Cada toque cambia: normal → 1 (1.25×) → 2 (1.5×) → 3 (2×) → normal. La voz no cambia de tono, solo va más rápido. Si algo está sonando, el cambio se aplica al instante.</p>
@@ -597,7 +604,7 @@
       <p><b>Clave de edición:</b> la primera vez que agregues, edites, borres o muevas un botón en una sesión, se pedirá una clave de 4 dígitos; después no se vuelve a pedir mientras no cierres la pestaña.</p>
       <p>Un mismo sonido no puede estar en dos botones a la vez: si subes un archivo que ya está en otro botón, se te preguntará si quieres moverlo aquí.</p>
     </div>
-    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v50</div>
+    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v52</div>
     <div class="footerrow">
       <button class="close" id="infoCloseBtn">Cerrar</button>
     </div>
@@ -724,6 +731,8 @@
   // el editor como siempre; si te mueves mientras sigues presionando, el
   // botón se "levanta" y lo puedes arrastrar a otra posición — los demás
   // botones se acomodan solos para abrirle espacio.
+  const HOLD_ARM_MS = 420;   // v51: mantener presionado → el botón se levanta (ya se puede arrastrar)
+  const HOLD_OPEN_MS = 380;  // v51: si sigue sin moverse este tiempo extra, se abre el editor solo
   let draggingPadId = null;      // id del botón que se arrastra ahora mismo
   let dragPadData = null;        // su objeto {id,label,audioUrl,...} mientras vive fuera de `pads`
   let dragStartIndex = -1;       // posición donde estaba antes de empezar a moverlo
@@ -1013,20 +1022,42 @@
       let mousePressTimer = null;
       let mouseLongPressArmed = false;
       let isDraggingThisPadMouse = false;
+      // v51: el editor se abre SOLO al mantener presionado (sin esperar a
+      // soltar). Fase 1 (HOLD_ARM_MS): el botón se levanta y ya se puede
+      // arrastrar. Fase 2 (HOLD_OPEN_MS): si no se movió, se abre el editor.
+      let holdOpenTimer = null;
+      let sheetOpenedByHold = false;
+      let mouseDownX = 0, mouseDownY = 0;
+      const armHold = () => { el.classList.add('holdArmed'); if(navigator.vibrate) navigator.vibrate(12); };
+      const disarmHold = () => { clearTimeout(holdOpenTimer); el.classList.remove('holdArmed'); };
+      const openByHold = () => {
+        disarmHold();
+        sheetOpenedByHold = true;
+        longPressArmed = false;
+        mouseLongPressArmed = false;
+        openSheet(pad.id);
+      };
 
+      el.addEventListener('touchcancel', () => { clearTimeout(pressTimer); disarmHold(); });
       el.addEventListener('touchstart', (e) => {
         longPressArmed = false;
         touchMoved = false;
         isDraggingThisPad = false;
+        sheetOpenedByHold = false;
+        disarmHold();
         const t = e.touches[0];
         touchStartX = t.clientX;
         touchStartY = t.clientY;
         if(deleteMode) return; // en modo eliminar no hay "mantener presionado"
-        pressTimer = setTimeout(() => { longPressArmed = true; }, 420);
+        pressTimer = setTimeout(() => {
+          longPressArmed = true;
+          armHold();
+          holdOpenTimer = setTimeout(openByHold, HOLD_OPEN_MS);
+        }, HOLD_ARM_MS);
       }, {passive:true});
 
       el.addEventListener('touchmove', (e) => {
-        if(isDraggingThisPad) return; // ya lo sigue el manejador del documento
+        if(isDraggingThisPad || sheetOpenedByHold) return; // ya lo sigue el manejador del documento / ya se abrió el editor
         const t = e.touches[0];
         const dx = Math.abs(t.clientX - touchStartX);
         const dy = Math.abs(t.clientY - touchStartY);
@@ -1039,13 +1070,24 @@
         }
         // Ya se cumplió el tiempo de "mantener presionado": de aquí en
         // adelante, moverse significa "lo quiero arrastrar" (estilo
-        // iPhone), no un scroll de la página.
+        // iPhone), no un scroll de la página. Un temblor mínimo del dedo
+        // (menos de 8px) no cuenta, para no cancelar el editor por accidente.
+        if(dx < 8 && dy < 8) return;
+        disarmHold();
         isDraggingThisPad = true;
         startPadDrag(pad, el, t.clientX, t.clientY);
       }, {passive:true});
 
-      el.addEventListener('touchend', () => {
+      el.addEventListener('touchend', (e) => {
         clearTimeout(pressTimer);
+        disarmHold();
+        if(sheetOpenedByHold){
+          // El editor ya se abrió mientras el dedo seguía abajo: al soltar no
+          // debe pasar nada más (y se evita el "clic fantasma" sobre el editor).
+          sheetOpenedByHold = false;
+          if(e.cancelable) e.preventDefault();
+          return;
+        }
         if(isDraggingThisPad) return; // lo termina el manejador del documento
         if(touchMoved) return; // fue un scroll, no un toque real
         if(deleteMode){ deletePadFromGrid(pad); return; }
@@ -1055,27 +1097,38 @@
 
       // Equivalente a "mantener presionado" pero con mouse, para PC/Mac
       // (los dispositivos táctiles ya lo resuelven con touchstart/touchend arriba).
-      el.addEventListener('mousedown', () => {
+      el.addEventListener('mousedown', (e) => {
         if('ontouchstart' in window) return;
         if(deleteMode) return; // en modo eliminar no hay "mantener presionado"
         mouseLongPressArmed = false;
         isDraggingThisPadMouse = false;
-        mousePressTimer = setTimeout(() => { mouseLongPressArmed = true; }, 420);
+        sheetOpenedByHold = false;
+        disarmHold();
+        mouseDownX = e.clientX; mouseDownY = e.clientY;
+        mousePressTimer = setTimeout(() => {
+          mouseLongPressArmed = true;
+          armHold();
+          holdOpenTimer = setTimeout(openByHold, HOLD_OPEN_MS);
+        }, HOLD_ARM_MS);
       });
 
       el.addEventListener('mousemove', (e) => {
         if('ontouchstart' in window) return;
         if(!mouseLongPressArmed || isDraggingThisPadMouse) return;
+        if(Math.abs(e.clientX - mouseDownX) < 6 && Math.abs(e.clientY - mouseDownY) < 6) return; // temblor del mouse, no arrastre
+        disarmHold();
         isDraggingThisPadMouse = true;
         startPadDrag(pad, el, e.clientX, e.clientY);
       });
 
       el.addEventListener('mouseup', () => {
         clearTimeout(mousePressTimer);
+        disarmHold();
       });
 
       el.addEventListener('mouseleave', () => {
         clearTimeout(mousePressTimer);
+        if(!isDraggingThisPadMouse) disarmHold();
       });
 
       el.addEventListener('click', (ev) => {
@@ -1085,6 +1138,7 @@
           return;
         }
         if('ontouchstart' in window) return;
+        if(sheetOpenedByHold){ sheetOpenedByHold = false; return; } // el editor ya se abrió solo
         if(isDraggingThisPadMouse){ isDraggingThisPadMouse = false; return; } // el "click" que sigue al soltar el arrastre no hace nada más
         if(mouseLongPressArmed){ mouseLongPressArmed = false; openSheet(pad.id); return; } // ya se armó "mantener presionado", sin arrastrar: abre el editor
         if(pad.audioUrl){ togglePad(pad); } else { openSheet(pad.id); }
@@ -1252,7 +1306,7 @@
   repeatBtn.addEventListener('click', () => {
     cycleMode(repeatBtn, () => repeatIdx, v => { repeatIdx = v; }, REPEAT_STEPS, (i) => {
       // Si algo está sonando, el nuevo número de repeticiones aplica a ese sonido.
-      if(currentlyPlayingPadId) repeatsLeft = REPEAT_STEPS[i];
+      if(currentlyPlayingPadId){ repeatsLeft = REPEAT_STEPS[i]; player.loop = repeatsLeft > 0; }
     });
   });
   speedBtn.addEventListener('click', () => {
@@ -1272,6 +1326,7 @@
       markPadPlaying(getPadElement(currentlyPlayingPadId), false);
     }
     repeatsLeft = 0;
+    player.loop = false;
     try{ player.pause(); player.currentTime = 0; }catch(e){}
     currentlyPlayingPadId = null;
     updateGlobalStopBtn();
@@ -1287,10 +1342,13 @@
     }
     stopCurrentlyPlaying();
     player.src = pad.audioUrl;
+    player.loop = false;
     setPlayerRate(SPEED_STEPS[speedIdx]);
     player.play().then(() => {
       currentlyPlayingPadId = pad.id;
       repeatsLeft = REPEAT_STEPS[repeatIdx];
+      player.loop = repeatsLeft > 0;
+      loopLastTime = 0;
       markPadPlaying(getPadElement(pad.id), true);
       updateGlobalStopBtn();
       setPadStatus(pad.id, 'ok');
@@ -1328,8 +1386,23 @@
     if(navigator.vibrate) navigator.vibrate(15);
   }
 
+  // v51: repetir SIN hueco. En vez de esperar a que termine y volver a dar
+  // play (eso dejaba un espacio notorio, sobre todo en iPhone), el sonido
+  // queda en bucle nativo (player.loop) y aquí se cuentan las vueltas:
+  // cuando currentTime "regresa" al inicio, se completó una repetición.
+  // En la última se apaga el bucle y el sonido termina normal.
+  let loopLastTime = 0;
+  player.addEventListener('timeupdate', () => {
+    const t = player.currentTime;
+    if(currentlyPlayingPadId && player.loop && t + 0.2 < loopLastTime){
+      repeatsLeft--;
+      if(repeatsLeft <= 0){ repeatsLeft = 0; player.loop = false; }
+    }
+    loopLastTime = t;
+  });
+
   player.addEventListener('ended', () => {
-    // v50: si quedan repeticiones, se vuelve a tocar el mismo sonido sin
+    // v50 (respaldo): si quedan repeticiones, se vuelve a tocar el mismo sonido sin
     // quitar el estado "sonando" del botón.
     if(currentlyPlayingPadId && repeatsLeft > 0){
       repeatsLeft--;
@@ -1363,6 +1436,11 @@
   let isWriteInProgress = false;
 
   function openSheet(padId){
+    // v52: al abrir el editor solo se detiene el sonido si es ESTE mismo
+    // botón el que está sonando; si suena otro, sigue sonando. (Si luego se
+    // usa "Escuchar" en el editor, ese sí lo reemplaza, porque todos usan
+    // el mismo reproductor.)
+    if(currentlyPlayingPadId === padId) stopCurrentlyPlaying();
     currentPadId = padId;
     const pad = pads.find(p => p.id === padId);
     pendingAudioBlob = null;
@@ -1412,6 +1490,37 @@
   }
 
   document.getElementById('cancelBtn').addEventListener('click', closeSheet);
+
+  // v52: tocar/hacer clic afuera del editor (sobre el fondo oscuro) lo cierra
+  // igual que "Cancelar". No se cierra si está guardando en ese momento.
+  overlay.addEventListener('click', (e) => {
+    if(e.target !== overlay) return;
+    if(isWriteInProgress) return;
+    closeSheet();
+  });
+
+  // v52: tecla Esc (PC) = Cancelar la ventana que esté hasta arriba.
+  // Se "oprime" su propio botón Cancelar para que haga exactamente lo mismo.
+  document.addEventListener('keydown', (e) => {
+    if(e.key !== 'Escape' && e.key !== 'Esc') return;
+    const isOpen = (id) => document.getElementById(id).classList.contains('open');
+    const order = [
+      ['pinOverlay', 'pinCancelBtn'],
+      ['conflictOverlay', 'conflictCancelBtn'],
+      ['swapOverlay', 'swapCancelBtn'],
+      ['reuseOverlay', 'reuseCancelBtn'],
+      ['overlay', 'cancelBtn'],
+      ['infoOverlay', 'infoCloseBtn'],
+    ];
+    for(const [ov, btn] of order){
+      if(isOpen(ov)){
+        if(ov === 'overlay' && isWriteInProgress) return;
+        e.preventDefault();
+        document.getElementById(btn).click();
+        return;
+      }
+    }
+  });
 
   saveBtn.addEventListener('click', async () => {
     if(currentPadId === null) return;
@@ -1721,8 +1830,9 @@
       if(pad && pad.audioUrl) url = pad.audioUrl;
     }
     if(!url) return;
+    stopCurrentlyPlaying(); // v52: el reproductor es compartido; se apaga bien el botón que sonara
     player.src = url;
-    setPlayerRate(1);
+    setPlayerRate(1); player.loop = false;
     player.play().then(() => {
       isPreviewPlaying = true;
       previewBtn.textContent = '■ Detener';
@@ -1772,9 +1882,9 @@
         `;
         item.querySelector('.rplay').addEventListener('click', () => {
           unlockAudio();
-          try{ player.pause(); }catch(e){}
+          stopCurrentlyPlaying();
           player.src = entry.audioUrl;
-          setPlayerRate(1);
+          setPlayerRate(1); player.loop = false;
           player.play().catch(()=>{});
         });
         item.querySelector('.rpick').addEventListener('click', async () => {
@@ -1801,9 +1911,9 @@
         `;
         item.querySelector('.rplay').addEventListener('click', () => {
           unlockAudio();
-          try{ player.pause(); }catch(e){}
+          stopCurrentlyPlaying();
           player.src = p.audioUrl;
-          setPlayerRate(1);
+          setPlayerRate(1); player.loop = false;
           player.play().catch(()=>{});
         });
         item.querySelector('.rpick').addEventListener('click', async () => {
@@ -2064,7 +2174,7 @@
     startError.textContent = '';
 
     player.src = BEEP_DATA_URL;
-    setPlayerRate(1);
+    setPlayerRate(1); player.loop = false;
     player.play().then(() => {
       audioCtxUnlocked = true;
 
