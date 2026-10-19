@@ -133,7 +133,11 @@
   .modebtn.on .badge{ display:block; }
   .modebtn.locked{ animation: lockBlink .5s ease-in-out 3; }
   @keyframes lockBlink{ 50%{ opacity:.35; } }
-  @media (prefers-reduced-motion: reduce){ .modebtn.locked{ animation:none; opacity:.5; } }
+  /* v55: el botón de velocidad muestra su multiplicador (x1, x1.25, x1.5, x2)
+     en lugar de un ícono. `.stay` = parpadeo corto del toque que se queda en x1. */
+  .modebtn .lbl{ font: 800 11px/1 -apple-system, system-ui, sans-serif; letter-spacing:-0.02em; font-variant-numeric: tabular-nums; pointer-events:none; }
+  .modebtn.stay{ animation: lockBlink .35s ease-in-out 1; }
+  @media (prefers-reduced-motion: reduce){ .modebtn.locked, .modebtn.stay{ animation:none; opacity:.5; } }
   #deleteModeBtn.active{
     background: var(--danger);
     border-color: var(--danger);
@@ -350,6 +354,24 @@
     z-index: 50;
   }
   .overlay.open{ display:flex; }
+  /* v55: "Identificar el botón". Mientras dura, el fondo oscuro se quita y deja
+     de capturar toques (la hoja de abajo sigue igual), para ver el botón con
+     sus colores reales mientras brinca. */
+  .overlay.identifying{ background: transparent; pointer-events: none; }
+  .overlay.identifying .sheet{ pointer-events: auto; }
+  .pad.locating{
+    position: relative; z-index: 5;
+    animation: padLocate .5s ease-in-out 4;
+    filter: drop-shadow(0 0 16px var(--accent));
+  }
+  @keyframes padLocate{
+    0%, 100%{ transform: translateY(0) scale(1); }
+    40%{ transform: translateY(-16px) scale(1.14); }
+    70%{ transform: translateY(0) scale(.97); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .pad.locating{ animation: none; outline: 4px solid var(--accent); outline-offset: 4px; border-radius: 50%; }
+  }
   .sheet{
     background: var(--panel);
     width:100%;
@@ -394,12 +416,18 @@
     padding: 12px; border-radius: 10px; background: var(--slot-empty);
     border: 1px solid var(--slot-border); margin-bottom: 8px;
   }
-  .reuseItem .rname{ flex:1; font-size:14px; font-weight:600; }
+  /* v54: con 3 botones por fila, en pantallas angostas los botones bajan a una
+     segunda línea (grupo .ract) en vez de apretar el nombre hasta partirlo. */
+  .reuseItem{ flex-wrap: wrap; }
+  .reuseItem .rname{ flex:1 1 110px; min-width:0; overflow-wrap:break-word; font-size:14px; font-weight:600; }
+  .reuseItem .ract{ display:flex; gap:8px; margin-left:auto; flex:none; }
   .reuseItem button{
     border:none; border-radius:8px; padding:8px 12px; font-size:13px; font-weight:700;
   }
   .reuseItem .rplay{ background: var(--slot-border); color: var(--text); }
   .reuseItem .rpick{ background: var(--accent); color:#1a1408; }
+  /* v54: borrar un sonido para siempre (documento + archivo en Storage) */
+  .reuseItem .rdel{ background: transparent; color: var(--danger); border: 1px solid var(--danger); }
   .reuseEmpty{ text-align:center; color: var(--text-dim); font-size: 13px; padding: 20px; }
 
   .conflictText{ font-size: 14px; color: var(--text-dim); line-height:1.5; margin-bottom: 18px; }
@@ -488,7 +516,7 @@
     </span>
   </button>
   <div id="startError"></div>
-  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v53</div>
+  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v55</div>
 </div>
 
 <div class="topbar" id="topbar">
@@ -499,7 +527,7 @@
     <button class="iconbtn" id="deleteModeBtn" title="Eliminar botones">－</button>
     <button class="iconbtn" id="addPadBtn" title="Agregar botón">＋</button>
     <button class="iconbtn modebtn" id="repeatBtn" title="Repetir: no"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11V9a3 3 0 0 1 3-3h12"/><path d="M16 3l3 3-3 3"/><path d="M20 13v2a3 3 0 0 1-3 3H5"/><path d="M8 21l-3-3 3-3"/></svg><span class="badge"></span></button>
-    <button class="iconbtn modebtn" id="speedBtn" title="Velocidad: normal"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M3 5.5v13a1 1 0 0 0 1.5.86L12 15v4.5a1 1 0 0 0 1.5.86l9-6.5a1 1 0 0 0 0-1.72l-9-6.5A1 1 0 0 0 12 5v4.5L4.5 4.64A1 1 0 0 0 3 5.5z"/></svg><span class="badge"></span></button>
+    <button class="iconbtn modebtn" id="speedBtn" title="Velocidad normal (x1)"><span class="lbl">x1</span></button>
     <button class="iconbtn bare" id="gridSizeBtn" title="Tamaño de botones"><span></span><span></span><span></span><span></span></button>
     <button class="iconbtn bare" id="infoBtn" title="Cómo usar">ⓘ</button>
   </div>
@@ -577,11 +605,11 @@
 
 <div class="overlay" id="conflictOverlay">
   <div class="sheet">
-    <h2>Ya existe un sonido con ese nombre</h2>
+    <h2 id="conflictTitle">Este sonido ya está en uso</h2>
     <div class="conflictText" id="conflictText"></div>
     <div class="conflictBtns">
-      <button class="replaceBtn" id="conflictReplaceBtn" type="button">Reemplazar (mueve el sonido a este botón)</button>
-      <button class="cancelBtn2" id="conflictCancelBtn" type="button">Cancelar</button>
+      <button class="replaceBtn" id="conflictIdentifyBtn" type="button">Sí, mostrarme el botón</button>
+      <button class="cancelBtn2" id="conflictCancelBtn" type="button">No, cerrar</button>
     </div>
   </div>
 </div>
@@ -596,16 +624,17 @@
       <p><b>Reordenar botones:</b> mantén presionado un botón y, sin soltar, arrástralo a otro lugar de la rejilla — los demás se acomodan solos para abrirle espacio. Para arrastrar, empieza a moverlo en cuanto se levante, antes de que se abra el editor.</p>
       <p><b>Eliminar botones:</b> toca el ícono － para activar el modo eliminar — aparece una "x" en cada botón; toca el que quieras borrar. Se apaga tocando de nuevo el ícono － o tocando cualquier lugar fuera de los botones.</p>
       <p><b>Repetir:</b> el ícono de las dos flechas en círculo. Cada toque cambia: no repite → repite 1 vez → 2 veces → 3 veces → no repite. El número en la bolita dice cuántas veces más se va a repetir el sonido después de la primera (con 3 se escucha 4 veces en total). El botón ■ también cancela las repeticiones que falten.</p>
-      <p><b>Velocidad:</b> el ícono ⏩. Cada toque cambia: normal → 1 (1.25×) → 2 (1.5×) → 3 (2×) → normal. La voz no cambia de tono, solo va más rápido. Si algo está sonando, el cambio se aplica al instante.</p>
-      <p>Al regresar a "no repite" o a "normal", el botón parpadea y se queda quieto un momento, para que si tocas varias veces seguidas no te pases. Al recargar la página, los dos regresan a normal.</p>
+      <p><b>Velocidad:</b> el botón que dice "x1". Cada toque cambia: x1 → x1.25 → x1.5 → x2 → x1. Al regresar a x1, el siguiente toque se queda en x1 (el botón parpadea un instante) y hasta el toque después vuelve a subir, para que no te pases de largo. La voz no cambia de tono, solo va más rápido. Si algo está sonando, el cambio se aplica al instante.</p>
+      <p>Al regresar a "no repite", el botón de repetir parpadea y se queda quieto un momento, para que si tocas varias veces seguidas no te pases. Al recargar la página, repetir y velocidad regresan a normal.</p>
       <p><b>Tamaño de los botones:</b> toca el ícono de los cuatro cuadritos para alternar entre 3, 4 o 5 columnas.</p>
       <p><b>Bocina Bluetooth:</b> mientras el tablero está abierto, la app mantiene "despierta" la conexión de audio con un sonido inaudible, para que la bocina no se coma el principio de cada sonido. Por eso el teléfono puede mostrar que hay algo reproduciéndose.</p>
       <p><b>Conexión:</b> si la línea de abajo de la barra superior se pone roja, no hay internet o se perdió la conexión con la base de datos compartida. Los sonidos que ya cargaron pueden seguir sonando, pero los cambios de otros teléfonos no llegarán hasta que se recupere.</p>
       <p><b>Colores:</b> verde significa que el sonido ya se revisó y funciona bien; naranja significa que hubo un problema al cargarlo.</p>
       <p><b>Clave de edición:</b> la primera vez que agregues, edites, borres o muevas un botón en una sesión, se pedirá una clave de 4 dígitos; después no se vuelve a pedir mientras no cierres la pestaña.</p>
-      <p>Un mismo sonido no puede estar en dos botones a la vez: si subes un archivo que ya está en otro botón, se te preguntará si quieres moverlo aquí.</p>
+      <p><b>Un mismo sonido no puede estar en dos botones a la vez:</b> si intentas poner uno que ya está en otro botón, se te avisa y no se permite. El aviso pregunta si quieres ver cuál botón es: si dices que sí, sin cerrar la ventana la pantalla se desplaza hasta ese botón y lo hace brincar. Si de verdad quieres usarlo en otro botón, quítaselo al primero o muévelo desde la Biblioteca ("En otros botones" → "Mover aquí").</p>
+      <p><b>Borrar un sonido para siempre:</b> mantén presionado un botón para abrir el editor, toca "Biblioteca" y, junto al sonido que quieras quitar, toca "Borrar". Si está en "Disponibles", se elimina de la Biblioteca; si está en "En otros botones", se elimina ese botón completo. En los dos casos también se borra el archivo de audio de la nube, y no se puede deshacer. Pide confirmación y la clave de edición.</p>
     </div>
-    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v53</div>
+    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v55</div>
     <div class="footerrow">
       <button class="close" id="infoCloseBtn">Cerrar</button>
     </div>
@@ -1290,9 +1319,12 @@
 
   // ---- v50: Repetir y Velocidad (siempre arrancan en normal al cargar) ----
   const REPEAT_STEPS = [0, 1, 2, 3];          // repeticiones extra después de la primera
-  const SPEED_STEPS  = [1, 1.25, 1.5, 2];     // normal, vel. 1, vel. 2, vel. 3
-  const MODE_LOCK_MS = 1500;                  // pausa al regresar a normal
+  const SPEED_STEPS  = [1, 1.25, 1.5, 2];     // x1 (normal), x1.25, x1.5, x2
+  const MODE_LOCK_MS = 1500;                  // Repetir: pausa al regresar a "no repite"
   let repeatIdx = 0, speedIdx = 0, repeatsLeft = 0;
+  // v55: al regresar a x1, el siguiente toque NO cambia nada (se "gasta" en x1)
+  // para que quien toca rápido no se pase de largo: x1 → x1.25 → x1.5 → x2 → x1 → x1 → x1.25…
+  let speedHold = false;
   const repeatBtn = document.getElementById('repeatBtn');
   const speedBtn  = document.getElementById('speedBtn');
 
@@ -1304,8 +1336,11 @@
   function renderModeButtons(){
     renderModeBtn(repeatBtn, repeatIdx, 'Repetir: no',
       'Repetir: ' + REPEAT_STEPS[repeatIdx] + (REPEAT_STEPS[repeatIdx] === 1 ? ' vez' : ' veces'));
-    renderModeBtn(speedBtn, speedIdx, 'Velocidad: normal',
-      'Velocidad ' + speedIdx + ' (' + SPEED_STEPS[speedIdx] + '×)');
+    // v55: la velocidad se muestra como texto (x1, x1.25, x1.5, x2), sin bolita numerada
+    const sp = SPEED_STEPS[speedIdx];
+    speedBtn.classList.toggle('on', speedIdx > 0);
+    speedBtn.querySelector('.lbl').textContent = 'x' + sp;
+    speedBtn.title = speedIdx > 0 ? 'Velocidad x' + sp : 'Velocidad normal (x1)';
   }
   // Al llegar a normal, el botón se "congela" MODE_LOCK_MS y parpadea: los
   // toques de más durante ese tiempo se ignoran para no brincar al siguiente.
@@ -1329,10 +1364,19 @@
     });
   });
   speedBtn.addEventListener('click', () => {
-    cycleMode(speedBtn, () => speedIdx, v => { speedIdx = v; }, SPEED_STEPS, (i) => {
-      // Si algo del tablero está sonando, se acelera/desacelera al instante.
-      if(currentlyPlayingPadId) setPlayerRate(SPEED_STEPS[i]);
-    });
+    if(navigator.vibrate) navigator.vibrate(10);
+    if(speedHold){
+      // Este toque solo "gasta" la parada en x1: no cambia la velocidad.
+      speedHold = false;
+      speedBtn.classList.remove('stay'); void speedBtn.offsetWidth; speedBtn.classList.add('stay');
+      setTimeout(() => speedBtn.classList.remove('stay'), 400);
+      return;
+    }
+    speedIdx = (speedIdx + 1) % SPEED_STEPS.length;
+    if(speedIdx === 0) speedHold = true; // llegó a x1: el próximo toque se queda en x1
+    renderModeButtons();
+    // Si algo del tablero está sonando, se acelera/desacelera al instante.
+    if(currentlyPlayingPadId) setPlayerRate(SPEED_STEPS[speedIdx]);
   });
   renderModeButtons();
 
@@ -1868,11 +1912,16 @@
   const reuseList = document.getElementById('reuseList');
   const reuseBtn = document.getElementById('reuseBtn');
 
-  reuseBtn.addEventListener('click', async () => {
+  // v54: botones recién borrados desde la Biblioteca. El listener de Firestore
+  // puede tardar un instante en quitarlos de `pads`; mientras tanto no se
+  // muestran en la lista.
+  const recentlyDeletedPadIds = new Set();
+
+  async function openReuseList(notice){
     reuseList.innerHTML = '<div class="reuseEmpty">Cargando…</div>';
     reuseOverlay.classList.add('open');
 
-    const options = pads.filter(p => p.audioUrl && p.id !== currentPadId);
+    const options = pads.filter(p => p.audioUrl && p.id !== currentPadId && !recentlyDeletedPadIds.has(p.id));
 
     let libraryDocs = [];
     try{
@@ -1882,8 +1931,19 @@
 
     reuseList.innerHTML = '';
 
+    if(notice){
+      const noticeEl = document.createElement('div');
+      noticeEl.className = 'reuseEmpty';
+      noticeEl.style.color = notice.error ? 'var(--danger)' : 'var(--text)';
+      noticeEl.textContent = notice.text;
+      reuseList.appendChild(noticeEl);
+    }
+
     if(options.length === 0 && libraryDocs.length === 0){
-      reuseList.innerHTML = '<div class="reuseEmpty">Todavía no hay sonidos guardados para reutilizar.</div>';
+      const emptyEl = document.createElement('div');
+      emptyEl.className = 'reuseEmpty';
+      emptyEl.textContent = 'Todavía no hay sonidos guardados para reutilizar.';
+      reuseList.appendChild(emptyEl);
       return;
     }
 
@@ -1899,8 +1959,11 @@
         item.className = 'reuseItem';
         item.innerHTML = `
           <div class="rname">${escapeHtml(entry.label || 'Sin nombre')}</div>
-          <button class="rplay" type="button">▶</button>
-          <button class="rpick" type="button">Usar</button>
+          <span class="ract">
+            <button class="rplay" type="button">▶</button>
+            <button class="rpick" type="button">Usar</button>
+            <button class="rdel" type="button">Borrar</button>
+          </span>
         `;
         item.querySelector('.rplay').addEventListener('click', () => {
           unlockAudio();
@@ -1910,8 +1973,22 @@
           player.play().catch(()=>{});
         });
         item.querySelector('.rpick').addEventListener('click', async () => {
+          // v55: si OTRO botón ya usa este mismo audio, no se asigna: se avisa
+          // (con la opción de identificar el botón) y la Biblioteca sigue abierta.
+          const dupPad = await findOtherPadWithUrl(entry.audioUrl, currentPadId);
+          if(dupPad){
+            await showInUseDialog({
+              title: 'Este sonido ya está en uso',
+              html: '<b>' + escapeHtml(entry.label || 'Este sonido') + '</b> ya está en el botón <b>' + escapeHtml(dupPad.label || 'otro botón') + '</b>. Un mismo sonido no puede estar en dos botones a la vez, así que no se puede usar aquí mientras ese botón lo tenga.<br><br>¿Quieres ver cuál botón es?',
+              padId: dupPad.id
+            });
+            return;
+          }
           reuseOverlay.classList.remove('open');
           await assignFromLibrary(doc.id, entry);
+        });
+        item.querySelector('.rdel').addEventListener('click', () => {
+          deleteSoundForever({ label: entry.label, audioUrl: entry.audioUrl, libraryDocId: doc.id, padId: null });
         });
         reuseList.appendChild(item);
       });
@@ -1928,8 +2005,11 @@
         item.className = 'reuseItem';
         item.innerHTML = `
           <div class="rname">${escapeHtml(p.label || 'Sin nombre')}</div>
-          <button class="rplay" type="button">▶</button>
-          <button class="rpick" type="button">Mover aquí</button>
+          <span class="ract">
+            <button class="rplay" type="button">▶</button>
+            <button class="rpick" type="button">Mover aquí</button>
+            <button class="rdel" type="button">Borrar</button>
+          </span>
         `;
         item.querySelector('.rplay').addEventListener('click', () => {
           unlockAudio();
@@ -1942,10 +2022,97 @@
           reuseOverlay.classList.remove('open');
           await swapWithPad(p.id);
         });
+        item.querySelector('.rdel').addEventListener('click', () => {
+          deleteSoundForever({ label: p.label, audioUrl: p.audioUrl, libraryDocId: null, padId: p.id });
+        });
         reuseList.appendChild(item);
       });
     }
-  });
+  }
+  reuseBtn.addEventListener('click', () => openReuseList());
+
+  // v54: borrar un sonido PARA SIEMPRE, en todos lados. Quita la entrada de
+  // la Biblioteca (o el botón completo, si viene de "En otros botones") y
+  // borra el archivo de audio en Storage. Las decisiones se toman con
+  // consultas frescas a Firestore, no con la copia local en memoria.
+  async function deleteSoundForever({ label, audioUrl, libraryDocId, padId }){
+    if(isWriteInProgress){
+      await openReuseList({ text: 'Espera a que termine la operación anterior…', error: false });
+      return;
+    }
+    const nombre = label || 'Sin nombre';
+    const msg = padId
+      ? 'Esto eliminará el botón "' + nombre + '" Y borrará su audio de la nube para siempre. No se puede deshacer. ¿Continuar?'
+      : 'Esto borrará "' + nombre + '" de la Biblioteca Y su audio de la nube para siempre. No se puede deshacer. ¿Continuar?';
+    if(!window.confirm(msg)) return;
+
+    isWriteInProgress = true;
+    let notice = null;
+    let blockedPad = null, blockedHtml = null;
+    try{
+      const ok = await requireEditAccess();
+      if(!ok) return;
+
+      // Que no siga sonando (el reproductor es compartido) antes de borrarlo.
+      stopCurrentlyPlaying();
+
+      const refs = new Map(); // path -> ref de los documentos a borrar
+      if(libraryDocId) refs.set('library/' + libraryDocId, libraryCollection.doc(libraryDocId));
+      if(padId) refs.set('pads/' + padId, padsCollection.doc(padId));
+
+      let blockedBy = null;
+      if(audioUrl){
+        const [padSnap, libSnap] = await Promise.all([
+          padsCollection.where('audioUrl', '==', audioUrl).get(),
+          libraryCollection.where('audioUrl', '==', audioUrl).get()
+        ]);
+        const otherPads = padSnap.docs.filter(d => d.id !== padId);
+        if(otherPads.length){
+          // Otro botón usa este mismo archivo: borrarlo lo dejaría roto.
+          blockedBy = otherPads.map(d => '<b>' + escapeHtml(d.data().label || 'Sin nombre') + '</b>').join(', ');
+          blockedPad = { id: otherPads[0].id };
+        } else {
+          libSnap.docs.forEach(d => refs.set('library/' + d.id, d.ref));
+        }
+      }
+
+      if(blockedBy){
+        // No se borra nada. El aviso (con la opción de identificar el botón) se
+        // muestra más abajo, ya con el bloqueo de escritura liberado.
+        blockedHtml = '<b>' + escapeHtml(nombre) + '</b> también lo usa el botón ' + blockedBy + ', y borrarlo dejaría a ese botón sin sonido. Primero elimina ese botón o cámbiale el sonido.<br><br>¿Quieres ver cuál botón es?';
+      } else {
+        const batch = db.batch();
+        refs.forEach(ref => batch.delete(ref));
+        await batch.commit();
+        if(padId) recentlyDeletedPadIds.add(padId);
+
+        let storageError = null;
+        if(audioUrl){
+          try{
+            await storage.refFromURL(audioUrl).delete();
+          }catch(delErr){
+            // Si el archivo ya no existe, el resultado es el que se buscaba.
+            if(!(delErr && delErr.code === 'storage/object-not-found')){
+              storageError = delErr;
+              console.error('No se pudo borrar el audio en Storage:', audioUrl, delErr);
+            }
+          }
+        }
+        notice = storageError
+          ? { text: 'Se quitó "' + nombre + '", pero no se pudo borrar su archivo en la nube (' + storageError.message + '). Quedó huérfano: bórralo con la herramienta de auditoría de Storage.', error: true }
+          : { text: 'Borrado para siempre: "' + nombre + '".', error: false };
+      }
+    }catch(err){
+      console.error('Error al borrar el sonido:', err);
+      notice = { text: 'Error al borrar: ' + err.message, error: true };
+    }finally{
+      isWriteInProgress = false;
+    }
+    if(blockedHtml){
+      await showInUseDialog({ title: 'No se puede borrar todavía', html: blockedHtml, padId: blockedPad && blockedPad.id });
+    }
+    await openReuseList(notice);
+  }
 
   async function assignFromLibrary(libraryDocId, entry){
     if(isWriteInProgress){ statusEl.textContent = 'Espera a que termine la operación anterior…'; statusEl.style.color = 'var(--text-dim)'; return; }
@@ -2099,22 +2266,90 @@
     updateStatus();
   }
 
-  function askFileConflict(file, matchedPad){
+  // v55: "este sonido ya está en uso en otro botón". Nunca se permite el mismo
+  // sonido en dos botones: se avisa y se ofrece IDENTIFICAR el botón que ya lo
+  // tiene (la pantalla se desplaza hasta él y brinca), sin cerrar la ventana.
+  const conflictTitle = document.getElementById('conflictTitle');
+  const conflictIdentifyBtn = document.getElementById('conflictIdentifyBtn');
+  const conflictCancelBtn = document.getElementById('conflictCancelBtn');
+  let identifyTimers = [];
+
+  function stopIdentify(){
+    identifyTimers.forEach(clearTimeout);
+    identifyTimers = [];
+    document.querySelectorAll('#grid .pad.locating').forEach(el => el.classList.remove('locating'));
+    document.querySelectorAll('.overlay.identifying').forEach(o => o.classList.remove('identifying'));
+    document.getElementById('grid').style.marginBottom = '';
+  }
+
+  // Lleva el botón a la parte visible de arriba (entre la barra superior y la
+  // hoja de abajo) y lo hace brincar 4 veces.
+  // El contenedor que realmente hace scroll (aquí es <body>, no la ventana).
+  function findScroller(from){
+    for(let n = from; n && n !== document.documentElement; n = n.parentElement){
+      const oy = getComputedStyle(n).overflowY;
+      if((oy === 'auto' || oy === 'scroll') && n.scrollHeight > n.clientHeight + 1) return n;
+    }
+    return document.scrollingElement || document.documentElement;
+  }
+
+  function identifyPad(padId, overlayEl){
+    stopIdentify();
+    const el = document.querySelector('#grid .pad[data-pad-id="' + CSS.escape(String(padId)) + '"]');
+    if(!el) return false;
+    const gridEl = document.getElementById('grid');
+    const sheet = overlayEl.querySelector('.sheet');
+    const sheetTop = sheet ? sheet.getBoundingClientRect().top : window.innerHeight;
+    const barBottom = topbarEl.getBoundingClientRect().bottom;
+    const r = el.getBoundingClientRect();
+    const wantedCenter = barBottom + (sheetTop - barBottom) / 2;
+    const scroller = findScroller(gridEl);
+    const wantedScroll = Math.max(0, scroller.scrollTop + (r.top + r.height / 2) - wantedCenter);
+    // Si el botón está en las últimas filas y la página no alcanza para subirlo,
+    // se agrega espacio abajo mientras dura la identificación.
+    const maxScroll = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+    if(wantedScroll > maxScroll) gridEl.style.marginBottom = Math.ceil(wantedScroll - maxScroll) + 'px';
+    overlayEl.classList.add('identifying');
+    scroller.scrollTo({ top: wantedScroll, behavior: 'smooth' });
+    identifyTimers.push(setTimeout(() => {
+      el.classList.remove('locating'); void el.offsetWidth; el.classList.add('locating');
+    }, 650));
+    identifyTimers.push(setTimeout(stopIdentify, 650 + 2200));
+    return true;
+  }
+
+  // Muestra el aviso y espera a que se cierre. `padId` es el botón que ya usa el
+  // sonido (si se conoce, aparece la pregunta de identificarlo).
+  function showInUseDialog({ title, html, padId }){
     return new Promise((resolve) => {
-      conflictText.innerHTML = 'Ya existe un sonido llamado <b>' + escapeHtml(file.name) + '</b> en el botón <b>' + escapeHtml(matchedPad.label || 'otro botón') + '</b>. Un mismo sonido no puede estar en dos botones a la vez.';
+      conflictTitle.textContent = title;
+      conflictText.innerHTML = html;
+      conflictIdentifyBtn.hidden = !padId;
       conflictOverlay.classList.add('open');
-      const replaceBtn = document.getElementById('conflictReplaceBtn');
-      const cancelBtn2 = document.getElementById('conflictCancelBtn');
-      const cleanup = () => {
+      const onIdentify = () => { identifyPad(padId, conflictOverlay); };
+      const onClose = () => {
+        stopIdentify();
         conflictOverlay.classList.remove('open');
-        replaceBtn.removeEventListener('click', onReplace);
-        cancelBtn2.removeEventListener('click', onCancel);
+        conflictIdentifyBtn.removeEventListener('click', onIdentify);
+        conflictCancelBtn.removeEventListener('click', onClose);
+        resolve();
       };
-      const onReplace = () => { cleanup(); resolve('replace'); };
-      const onCancel = () => { cleanup(); resolve('cancel'); };
-      replaceBtn.addEventListener('click', onReplace);
-      cancelBtn2.addEventListener('click', onCancel);
+      conflictIdentifyBtn.addEventListener('click', onIdentify);
+      conflictCancelBtn.addEventListener('click', onClose);
     });
+  }
+
+  // Consulta fresca a Firestore: ¿hay OTRO botón con este mismo audio?
+  async function findOtherPadWithUrl(url, exceptPadId){
+    if(!url) return null;
+    try{
+      const snap = await padsCollection.where('audioUrl', '==', url).get();
+      const d = snap.docs.find(x => x.id !== exceptPadId);
+      return d ? { id: d.id, label: d.data().label || '' } : null;
+    }catch(err){
+      const p = pads.find(x => x.audioUrl === url && x.id !== exceptPadId);
+      return p ? { id: p.id, label: p.label || '' } : null;
+    }
   }
 
   fileInput.addEventListener('change', async (e) => {
@@ -2130,10 +2365,14 @@
     );
 
     if(matchedPad){
-      const choice = await askFileConflict(file, matchedPad);
-      if(choice === 'cancel') return;
-      replaceOldAudioUrl = matchedPad.audioUrl;
-      applyChosenFile(file, matchedPad);
+      // v55: ya no se ofrece "Reemplazar". El mismo sonido no puede estar en dos
+      // botones: se avisa, no se aplica el archivo y se ofrece mostrar el botón.
+      await showInUseDialog({
+        title: 'Este sonido ya está en uso',
+        html: '<b>' + escapeHtml(file.name) + '</b> ya está en el botón <b>' + escapeHtml(matchedPad.label || 'otro botón') + '</b>. Un mismo sonido no puede estar en dos botones a la vez, así que no se puede poner aquí mientras ese botón lo tenga. Si quieres usarlo aquí, primero quítaselo a ese botón o muévelo desde la Biblioteca.<br><br>¿Quieres ver cuál botón es?',
+        padId: matchedPad.id
+      });
+      return;
     } else {
       replaceOldAudioUrl = null;
       applyChosenFile(file, null);
