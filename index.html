@@ -135,7 +135,10 @@
   @keyframes lockBlink{ 50%{ opacity:.35; } }
   /* v55: el botón de velocidad muestra su multiplicador (x1, x1.25, x1.5, x2)
      en lugar de un ícono. `.stay` = parpadeo corto del toque que se queda en x1. */
-  .modebtn .lbl{ font: 800 11px/1 -apple-system, system-ui, sans-serif; letter-spacing:-0.02em; font-variant-numeric: tabular-nums; pointer-events:none; }
+  .modebtn .lbl{ display:inline-flex; align-items:baseline; justify-content:center; gap:1px; pointer-events:none; font-family:-apple-system, system-ui, sans-serif; }
+  .modebtn .lbl .xx{ font-size:12px; font-weight:700; line-height:1; }
+  /* v56: número alto y angosto (más largo que ancho) para que se lea bien */
+  .modebtn .lbl .nn{ display:inline-block; font-size:23px; font-weight:800; line-height:1; transform:scaleX(.7); transform-origin:left center; margin-right:-6px; }
   .modebtn.stay{ animation: lockBlink .35s ease-in-out 1; }
   @media (prefers-reduced-motion: reduce){ .modebtn.locked, .modebtn.stay{ animation:none; opacity:.5; } }
   #deleteModeBtn.active{
@@ -516,7 +519,7 @@
     </span>
   </button>
   <div id="startError"></div>
-  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v55</div>
+  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v56</div>
 </div>
 
 <div class="topbar" id="topbar">
@@ -527,7 +530,7 @@
     <button class="iconbtn" id="deleteModeBtn" title="Eliminar botones">－</button>
     <button class="iconbtn" id="addPadBtn" title="Agregar botón">＋</button>
     <button class="iconbtn modebtn" id="repeatBtn" title="Repetir: no"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11V9a3 3 0 0 1 3-3h12"/><path d="M16 3l3 3-3 3"/><path d="M20 13v2a3 3 0 0 1-3 3H5"/><path d="M8 21l-3-3 3-3"/></svg><span class="badge"></span></button>
-    <button class="iconbtn modebtn" id="speedBtn" title="Velocidad normal (x1)"><span class="lbl">x1</span></button>
+    <button class="iconbtn modebtn" id="speedBtn" title="Velocidad normal (x1)"><span class="lbl"><span class="xx">x</span><span class="nn">1</span></span></button>
     <button class="iconbtn bare" id="gridSizeBtn" title="Tamaño de botones"><span></span><span></span><span></span><span></span></button>
     <button class="iconbtn bare" id="infoBtn" title="Cómo usar">ⓘ</button>
   </div>
@@ -624,7 +627,7 @@
       <p><b>Reordenar botones:</b> mantén presionado un botón y, sin soltar, arrástralo a otro lugar de la rejilla — los demás se acomodan solos para abrirle espacio. Para arrastrar, empieza a moverlo en cuanto se levante, antes de que se abra el editor.</p>
       <p><b>Eliminar botones:</b> toca el ícono － para activar el modo eliminar — aparece una "x" en cada botón; toca el que quieras borrar. Se apaga tocando de nuevo el ícono － o tocando cualquier lugar fuera de los botones.</p>
       <p><b>Repetir:</b> el ícono de las dos flechas en círculo. Cada toque cambia: no repite → repite 1 vez → 2 veces → 3 veces → no repite. El número en la bolita dice cuántas veces más se va a repetir el sonido después de la primera (con 3 se escucha 4 veces en total). El botón ■ también cancela las repeticiones que falten.</p>
-      <p><b>Velocidad:</b> el botón que dice "x1". Cada toque cambia: x1 → x1.25 → x1.5 → x2 → x1. Al regresar a x1, el siguiente toque se queda en x1 (el botón parpadea un instante) y hasta el toque después vuelve a subir, para que no te pases de largo. La voz no cambia de tono, solo va más rápido. Si algo está sonando, el cambio se aplica al instante.</p>
+      <p><b>Velocidad:</b> el botón que dice "x1". Cada toque cambia de nivel: x1 → x2 → x3 → x4 → x1 (equivalen a velocidad normal, 1.25, 1.5 y 2). Al regresar a x1, si tocas otra vez enseguida se queda en x1 (parpadea) para que no te pases de largo; si esperas más de un segundo y medio, el siguiente toque ya sube normal. La voz no cambia de tono, solo va más rápido. Si algo está sonando, el cambio se aplica al instante.</p>
       <p>Al regresar a "no repite", el botón de repetir parpadea y se queda quieto un momento, para que si tocas varias veces seguidas no te pases. Al recargar la página, repetir y velocidad regresan a normal.</p>
       <p><b>Tamaño de los botones:</b> toca el ícono de los cuatro cuadritos para alternar entre 3, 4 o 5 columnas.</p>
       <p><b>Bocina Bluetooth:</b> mientras el tablero está abierto, la app mantiene "despierta" la conexión de audio con un sonido inaudible, para que la bocina no se coma el principio de cada sonido. Por eso el teléfono puede mostrar que hay algo reproduciéndose.</p>
@@ -634,7 +637,7 @@
       <p><b>Un mismo sonido no puede estar en dos botones a la vez:</b> si intentas poner uno que ya está en otro botón, se te avisa y no se permite. El aviso pregunta si quieres ver cuál botón es: si dices que sí, sin cerrar la ventana la pantalla se desplaza hasta ese botón y lo hace brincar. Si de verdad quieres usarlo en otro botón, quítaselo al primero o muévelo desde la Biblioteca ("En otros botones" → "Mover aquí").</p>
       <p><b>Borrar un sonido para siempre:</b> mantén presionado un botón para abrir el editor, toca "Biblioteca" y, junto al sonido que quieras quitar, toca "Borrar". Si está en "Disponibles", se elimina de la Biblioteca; si está en "En otros botones", se elimina ese botón completo. En los dos casos también se borra el archivo de audio de la nube, y no se puede deshacer. Pide confirmación y la clave de edición.</p>
     </div>
-    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v55</div>
+    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v56</div>
     <div class="footerrow">
       <button class="close" id="infoCloseBtn">Cerrar</button>
     </div>
@@ -1324,7 +1327,8 @@
   let repeatIdx = 0, speedIdx = 0, repeatsLeft = 0;
   // v55: al regresar a x1, el siguiente toque NO cambia nada (se "gasta" en x1)
   // para que quien toca rápido no se pase de largo: x1 → x1.25 → x1.5 → x2 → x1 → x1 → x1.25…
-  let speedHold = false;
+  let speedHold = false, speedHoldTimer = null;
+  const SPEED_HOLD_MS = 1500;
   const repeatBtn = document.getElementById('repeatBtn');
   const speedBtn  = document.getElementById('speedBtn');
 
@@ -1339,8 +1343,9 @@
     // v55: la velocidad se muestra como texto (x1, x1.25, x1.5, x2), sin bolita numerada
     const sp = SPEED_STEPS[speedIdx];
     speedBtn.classList.toggle('on', speedIdx > 0);
-    speedBtn.querySelector('.lbl').textContent = 'x' + sp;
-    speedBtn.title = speedIdx > 0 ? 'Velocidad x' + sp : 'Velocidad normal (x1)';
+    // v56: el ícono solo muestra números cerrados (x1, x2, x3, x4); la velocidad real va en el title
+    speedBtn.querySelector('.nn').textContent = String(speedIdx + 1);
+    speedBtn.title = speedIdx > 0 ? 'Velocidad x' + sp + ' (nivel ' + (speedIdx + 1) + ')' : 'Velocidad normal (x1)';
   }
   // Al llegar a normal, el botón se "congela" MODE_LOCK_MS y parpadea: los
   // toques de más durante ese tiempo se ignoran para no brincar al siguiente.
@@ -1367,13 +1372,19 @@
     if(navigator.vibrate) navigator.vibrate(10);
     if(speedHold){
       // Este toque solo "gasta" la parada en x1: no cambia la velocidad.
-      speedHold = false;
+      speedHold = false; clearTimeout(speedHoldTimer);
       speedBtn.classList.remove('stay'); void speedBtn.offsetWidth; speedBtn.classList.add('stay');
       setTimeout(() => speedBtn.classList.remove('stay'), 400);
       return;
     }
     speedIdx = (speedIdx + 1) % SPEED_STEPS.length;
-    if(speedIdx === 0) speedHold = true; // llegó a x1: el próximo toque se queda en x1
+    clearTimeout(speedHoldTimer);
+    if(speedIdx === 0){
+      // llegó a x1: el próximo toque (si es seguido) se queda en x1; si pasan
+      // SPEED_HOLD_MS sin tocar, la parada se cancela y el toque sube normal.
+      speedHold = true;
+      speedHoldTimer = setTimeout(() => { speedHold = false; }, SPEED_HOLD_MS);
+    }
     renderModeButtons();
     // Si algo del tablero está sonando, se acelera/desacelera al instante.
     if(currentlyPlayingPadId) setPlayerRate(SPEED_STEPS[speedIdx]);
