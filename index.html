@@ -627,7 +627,7 @@
       <p><b>Reordenar botones:</b> mantén presionado un botón y, sin soltar, arrástralo a otro lugar de la rejilla — los demás se acomodan solos para abrirle espacio. Para arrastrar, empieza a moverlo en cuanto se levante, antes de que se abra el editor.</p>
       <p><b>Eliminar botones:</b> toca el ícono － para activar el modo eliminar — aparece una "x" en cada botón; toca el que quieras borrar. Se apaga tocando de nuevo el ícono － o tocando cualquier lugar fuera de los botones.</p>
       <p><b>Repetir:</b> el ícono de las dos flechas en círculo. Cada toque cambia: no repite → repite 1 vez → 2 veces → 3 veces → no repite. El número en la bolita dice cuántas veces más se va a repetir el sonido después de la primera (con 3 se escucha 4 veces en total). El botón ■ también cancela las repeticiones que falten.</p>
-      <p><b>Velocidad:</b> el botón que dice "x1". Cada toque cambia de nivel: x1 → x2 → x3 → x1 (equivalen a velocidad normal, 1.25 y 1.5). Al regresar a x1, si tocas otra vez enseguida se queda en x1 (parpadea) para que no te pases de largo; si esperas más de un segundo y medio, el siguiente toque ya sube normal. La voz no cambia de tono, solo va más rápido. Si algo está sonando, el cambio se aplica al instante.</p>
+      <p><b>Velocidad:</b> el botón que dice "x1". Cada toque cambia de nivel: x1 → x2 → x3 → x1 (equivalen a velocidad normal, 1.5 y 2). Al regresar a x1, si tocas otra vez enseguida se queda en x1 (parpadea) para que no te pases de largo; si esperas más de un segundo y medio, el siguiente toque ya sube normal. La voz no cambia de tono, solo va más rápido. Si algo está sonando, el cambio se aplica al instante.</p>
       <p>Al regresar a "no repite", el botón de repetir parpadea y se queda quieto un momento, para que si tocas varias veces seguidas no te pases. Al recargar la página, repetir y velocidad regresan a normal.</p>
       <p><b>Tamaño de los botones:</b> toca el ícono de los cuatro cuadritos para alternar entre 3, 4 o 5 columnas.</p>
       <p><b>Bocina Bluetooth:</b> mientras el tablero está abierto, la app mantiene "despierta" la conexión de audio con un sonido inaudible, para que la bocina no se coma el principio de cada sonido. Por eso el teléfono puede mostrar que hay algo reproduciéndose.</p>
@@ -1351,7 +1351,7 @@
 
   // ---- v50: Repetir y Velocidad (siempre arrancan en normal al cargar) ----
   const REPEAT_STEPS = [0, 1, 2, 3];          // repeticiones extra después de la primera
-  const SPEED_STEPS  = [1, 1.25, 1.5];        // nivel x1 (normal), x2 (1.25), x3 (1.5)
+  const SPEED_STEPS  = [1, 1.5, 2];           // nivel x1 (normal), x2 (1.5), x3 (2)
   const MODE_LOCK_MS = 1500;                  // Repetir: pausa al regresar a "no repite"
   let repeatIdx = 0, speedIdx = 0, repeatsLeft = 0;
   // v55: al regresar a x1, el siguiente toque NO cambia nada (se "gasta" en x1)
