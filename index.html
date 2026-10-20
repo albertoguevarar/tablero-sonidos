@@ -519,7 +519,7 @@
     </span>
   </button>
   <div id="startError"></div>
-  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v59</div>
+  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v60</div>
 </div>
 
 <div class="topbar" id="topbar">
@@ -637,7 +637,7 @@
       <p><b>Un mismo sonido no puede estar en dos botones a la vez:</b> si intentas poner uno que ya está en otro botón, se te avisa y no se permite. El aviso pregunta si quieres ver cuál botón es: si dices que sí, sin cerrar la ventana la pantalla se desplaza hasta ese botón y lo hace brincar. Si de verdad quieres usarlo en otro botón, quítaselo al primero o muévelo desde la Biblioteca ("En otros botones" → "Mover aquí").</p>
       <p><b>Borrar un sonido para siempre:</b> mantén presionado un botón para abrir el editor, toca "Biblioteca" y, junto al sonido que quieras quitar, toca "Borrar". Si está en "Disponibles", se elimina de la Biblioteca; si está en "En otros botones", se elimina ese botón completo. En los dos casos también se borra el archivo de audio de la nube, y no se puede deshacer. Pide confirmación y la clave de edición.</p>
     </div>
-    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v59</div>
+    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v60</div>
     <div class="footerrow">
       <button class="close" id="infoCloseBtn">Cerrar</button>
     </div>
@@ -922,10 +922,38 @@
 
     renderGrid();
     movePadDrag(pointerX, pointerY);
+    if(!dragScrollRaf) dragScrollRaf = requestAnimationFrame(dragAutoScrollStep);
+  }
+
+  // v60: al arrastrar un botón cerca del borde de arriba o de abajo de la
+  // pantalla, la rejilla se desplaza sola (más rápido entre más cerca del borde)
+  // para poder llevarlo a cualquier posición sin soltarlo.
+  let dragLastX = 0, dragLastY = 0, dragScrollRaf = 0;
+  const DRAG_EDGE_PX = 90;     // zona sensible junto al borde
+  const DRAG_MAX_SPEED = 16;   // píxeles por cuadro (≈ 960 px/s a 60 fps)
+  function dragAutoScrollStep(){
+    dragScrollRaf = 0;
+    if(!draggingPadId || !dragEl) return;
+    const scroller = findScroller(document.getElementById('grid'));
+    const topLimit = topbarEl.getBoundingClientRect().bottom + DRAG_EDGE_PX * 0.6;
+    const bottomLimit = window.innerHeight - DRAG_EDGE_PX;
+    let dy = 0;
+    if(dragLastY < topLimit){
+      dy = -Math.min(1, (topLimit - dragLastY) / DRAG_EDGE_PX) * DRAG_MAX_SPEED;
+    }else if(dragLastY > bottomLimit){
+      dy = Math.min(1, (dragLastY - bottomLimit) / DRAG_EDGE_PX) * DRAG_MAX_SPEED;
+    }
+    if(dy){
+      const before = scroller.scrollTop;
+      scroller.scrollTop = before + dy;
+      if(scroller.scrollTop !== before) movePadDrag(dragLastX, dragLastY); // el botón queda en otro lugar de la rejilla
+    }
+    dragScrollRaf = requestAnimationFrame(dragAutoScrollStep);
   }
 
   function movePadDrag(pointerX, pointerY){
     if(!draggingPadId || !dragEl) return;
+    dragLastX = pointerX; dragLastY = pointerY;
     dragEl.style.left = (pointerX - dragGrabDX) + 'px';
     dragEl.style.top = (pointerY - dragGrabDY) + 'px';
 
@@ -958,6 +986,7 @@
     document.removeEventListener('mousemove', onDragDocMouseMove);
     document.removeEventListener('mouseup', onDragDocMouseUp);
 
+    if(dragScrollRaf){ cancelAnimationFrame(dragScrollRaf); dragScrollRaf = 0; }
     const movedPad = dragPadData;
     const startIndex = dragStartIndex;
     const finalIndex = dragPlaceholderIndex;
