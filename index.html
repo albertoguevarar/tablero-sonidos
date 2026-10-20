@@ -519,7 +519,7 @@
     </span>
   </button>
   <div id="startError"></div>
-  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v57</div>
+  <div style="position:absolute; left:0; right:0; bottom: max(14px, env(safe-area-inset-bottom)); text-align:center; color:var(--text-dim); font-size:11px;">v58</div>
 </div>
 
 <div class="topbar" id="topbar">
@@ -637,7 +637,7 @@
       <p><b>Un mismo sonido no puede estar en dos botones a la vez:</b> si intentas poner uno que ya está en otro botón, se te avisa y no se permite. El aviso pregunta si quieres ver cuál botón es: si dices que sí, sin cerrar la ventana la pantalla se desplaza hasta ese botón y lo hace brincar. Si de verdad quieres usarlo en otro botón, quítaselo al primero o muévelo desde la Biblioteca ("En otros botones" → "Mover aquí").</p>
       <p><b>Borrar un sonido para siempre:</b> mantén presionado un botón para abrir el editor, toca "Biblioteca" y, junto al sonido que quieras quitar, toca "Borrar". Si está en "Disponibles", se elimina de la Biblioteca; si está en "En otros botones", se elimina ese botón completo. En los dos casos también se borra el archivo de audio de la nube, y no se puede deshacer. Pide confirmación y la clave de edición.</p>
     </div>
-    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v57</div>
+    <div style="text-align:center; color:var(--text-dim); font-size:11px; margin: 4px 0 16px 0;">v58</div>
     <div class="footerrow">
       <button class="close" id="infoCloseBtn">Cerrar</button>
     </div>
@@ -1467,14 +1467,17 @@
   // cuando currentTime "regresa" al inicio, se completó una repetición.
   // En la última se apaga el bucle y el sonido termina normal.
   let loopLastTime = 0;
-  player.addEventListener('timeupdate', () => {
+  // v58: antes se usaba 'timeupdate', que solo avisa cada ~250 ms y en sonidos
+  // cortos se perdía la vuelta: el bucle no se apagaba y el botón seguía
+  // parpadeando. Ahora se revisa cada 30 ms.
+  setInterval(() => {
     const t = player.currentTime;
-    if(currentlyPlayingPadId && player.loop && t + 0.2 < loopLastTime){
+    if(currentlyPlayingPadId && player.loop && t + 0.03 < loopLastTime){
       repeatsLeft--;
       if(repeatsLeft <= 0){ repeatsLeft = 0; player.loop = false; }
     }
     loopLastTime = t;
-  });
+  }, 30);
 
   player.addEventListener('ended', () => {
     // v50 (respaldo): si quedan repeticiones, se vuelve a tocar el mismo sonido sin
